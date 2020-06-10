@@ -1,0 +1,78 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &1728998519637773163
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 5379071433294640168}
+  - component: {fileID: 2703628795079287578}
+  m_Layer: 0
+  m_Name: CityGenerator
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &5379071433294640168
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1728998519637773163}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &2703628795079287578
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1728998519637773163}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: cc20efbcf56274944882c8cb11a5c4b5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  buildingPrefabs:
+  - {fileID: 8506049493161116467, guid: 529f646614b60d142b9e38309a60c586, type: 3}
+  tRoadPrefab: {fileID: 8506049493161116467, guid: dfe90f89897a62040913a7871d871441,
+    type: 3}
+  horizontalRoadPrefab: {fileID: 8506049493161116467, guid: c69f4be8a40b11943b51c830eb4b8e78,
+    type: 3}
+  verticalRoadPrefab: {fileID: 8506049493161116467, guid: b48bd2fcc9f74a04bb8f8af2b07b9d20,
+    type: 3}
+  cornerRoadFRPrefab: {fileID: 8506049493161116467, guid: f31dea037c94810409cfc4757d82b193,
+    type: 3}
+  cornerRoadRBPrefab: {fileID: 8506049493161116467, guid: b1833481f7045f341a61086aa96b099e,
+    type: 3}
+  cornerRoadBLPrefab: {fileID: 8506049493161116467, guid: b3a9354bb6a32be4c83886514423e521,
+    type: 3}
+  cornerRoadLFPrefab: {fileID: 8506049493161116467, guid: 55f2e6167e093e14cba263001709b1dc,
+    type: 3}
+  tRoadFRBPrefab: {fileID: 8506049493161116467, guid: 35fa3949afbdf184aa49a2eecd437c27,
+    type: 3}
+  tRoadRBLPrefab: {fileID: 8506049493161116467, guid: ae438fbc348444f428d7a844e2dfa739,
+    type: 3}
+  tRoadBLFPrefab: {fileID: 8506049493161116467, guid: 214a750f452389e42b00b4348e754b2c,
+    type: 3}
+  tRoadLFRPrefab: {fileID: 8506049493161116467, guid: e85d23cce880e7441aef6b5df46b12bd,
+    type: 3}
+  deadEndRoadPrefab: {fileID: 8506049493161116467, guid: dfe90f89897a62040913a7871d871441,
+    type: 3}
+  crossRoadPrefab: {fileID: 8506049493161116467, guid: dfe90f89897a62040913a7871d871441,
+    type: 3}
+  gridSize: 5
+  plotSize: 1
+  camera: {fileID: 0}
+  carPrefab: {fileID: 1257282903431945574, guid: 3077b669c458b9344a559d9a773f3c91,
+    type: 3}

@@ -1,0 +1,32 @@
+Stages of Development
+---------------------
+
+Generation system:
+- Create land plots on a grid
+- Specify which plots as building/road
+- Specify connections between road plots
+
+Building plot system:
+- Randomise archetype and building prefab
+- Support multiple buildings with random count/placement and collision prevention
+
+Building system:
+- Randomise modular pieces of building
+
+Road plot system:
+- Specify archetype via connections
+- Specify rotation via connections
+- Generate waypoint nodes
+- Create connections between waypoint nodes
+- Create two-lane waypoint+connection system
+
+Car system:
+- Single AI car driving around one-lane system
+- Single AI car driving around two-lane system
+- Multiple cars driving around
+- Multiple car prefabs
+- Inter-lane collision prevention
+- Intersection traffic lights AI
+- Intersection turning
+- Physics based locomotion rather than on-rails
+- Physical collisions between cars
