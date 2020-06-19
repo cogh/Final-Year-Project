@@ -34,6 +34,26 @@ public class CityGenerationScript : MonoBehaviour
 
         // Create some cars
         SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
+        SpawnCar(0, 0);
         SpawnCar(2, 0);
         SpawnCar(4, 0);
     }
@@ -153,7 +173,7 @@ public class CityGenerationScript : MonoBehaviour
         {
             for (int z = 0; z < gridSize; z++)
             {
-                cityGrid[x,z].plotObject = Instantiate(cityGrid[x,z].plotPrefab, new Vector3(x * plotSize, 0, z * plotSize), cityGrid[x, z].plotPrefab.transform.rotation);
+                cityGrid[x, z].plotObject = Instantiate(cityGrid[x, z].plotPrefab, new Vector3(x * plotSize, 0, z * plotSize), cityGrid[x, z].plotPrefab.transform.rotation);
             }
         }
     }

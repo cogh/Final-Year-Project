@@ -10,6 +10,7 @@ GameObject:
   m_Component:
   - component: {fileID: 5379071433294640168}
   - component: {fileID: 2703628795079287578}
+  - component: {fileID: 8892246714198572044}
   m_Layer: 0
   m_Name: CityGenerator
   m_TagString: Untagged
@@ -38,7 +39,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1728998519637773163}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: cc20efbcf56274944882c8cb11a5c4b5, type: 3}
   m_Name: 
@@ -75,4 +76,24 @@ MonoBehaviour:
   plotSize: 1
   camera: {fileID: 0}
   carPrefab: {fileID: 1257282903431945574, guid: 3077b669c458b9344a559d9a773f3c91,
+    type: 3}
+--- !u!114 &8892246714198572044
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1728998519637773163}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6bbd8eee7fd63a4478b1496a6627f217, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  centrePoint: {x: 0, y: 0, z: 0}
+  centreRadius: 0
+  layerCount: 0
+  sliceCount: 0
+  layerWidth: 0
+  sliceWidth: 0
+  nodePrefab: {fileID: 2553321170709485316, guid: 30d31113c3e8e5148b78cd2706b027e2,
     type: 3}
