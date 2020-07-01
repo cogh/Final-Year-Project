@@ -27,10 +27,9 @@ public class CarScript : MonoBehaviour
             GameObject nextTargetNode = targetNode.GetComponent<NodeScript>().connectedNodes[nextTargetNodeIndex];
 
             // Guarantee next target node is not a dead end
-            while (nextTargetNode.GetComponent<NodeScript>().connectedNodes.Count <= 0)
+            if (nextTargetNode.GetComponent<NodeScript>().connectedNodes.Count == 0)
             {
-                nextTargetNodeIndex = Random.Range(0, targetNode.GetComponent<NodeScript>().connectedNodes.Count);
-                nextTargetNode = targetNode.GetComponent<NodeScript>().connectedNodes[nextTargetNodeIndex];
+                targetNode = lastNode;
             }
 
             // Set new target node

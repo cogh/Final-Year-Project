@@ -31,7 +31,7 @@ public class CellCityGenerationScript : MonoBehaviour
         ConnectEdgeNodes();
 
         // Attach car to random node
-        SpawnCar(0, 0);
+        SpawnCar(4, 4);
     }
 
     void SpawnCar(int x, int y)
@@ -41,13 +41,14 @@ public class CellCityGenerationScript : MonoBehaviour
         GameObject startingEdge = startingCell.GetComponent<CellScript>().edges["forward"];
         GameObject startingNode = startingEdge.GetComponent<EdgeScript>().entranceNodes[0];
         car.GetComponent<CarScript>().targetNode = startingNode;
+        car.transform.position = startingNode.transform.position;
     }
 
     void ConnectEdgeNodes()
     {
         for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
         {
-            for (int layerIndex = 0; layerIndex + 1 < layerCount - 1; layerIndex++)
+            for (int layerIndex = 0; layerIndex < layerCount - 1; layerIndex++)
             {
                 CellScript cellScript = cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>();
                 foreach (KeyValuePair<string, GameObject> edge in cellScript.edges)
@@ -55,11 +56,10 @@ public class CellCityGenerationScript : MonoBehaviour
                     // Get scripts
                     EdgeScript edgeScript = edge.Value.GetComponent<EdgeScript>();
 
-                    // Entrance nodes
+                    // Connect entrance nodes to exit nodes within this cell
                     foreach (GameObject entranceNode in edgeScript.entranceNodes)
                     {
                         NodeScript entranceNodeScript = entranceNode.GetComponent<NodeScript>();
-                        // Connect to every entrance node on every edge
                         foreach (KeyValuePair<string, GameObject> targetEdge in cellScript.edges)
                         {
                             // Get scripts
@@ -67,6 +67,19 @@ public class CellCityGenerationScript : MonoBehaviour
                             foreach (GameObject exitNode in targetEdgeScript.exitNodes)
                             {
                                 entranceNodeScript.connectedNodes.Add(exitNode);
+                            }
+                        }
+                    }
+
+                    // Connect exit nodes to entrance nodes of adjacent cells
+                    if (edgeScript.targetEdge != null)
+                    {
+                        EdgeScript adjacentEdgeScript = edgeScript.targetEdge.GetComponent<EdgeScript>();
+                        foreach (GameObject exitNode in edgeScript.exitNodes)
+                        {
+                            foreach (GameObject entranceNode in adjacentEdgeScript.entranceNodes)
+                            {
+                                exitNode.GetComponent<NodeScript>().connectedNodes.Add(entranceNode);
                             }
                         }
                     }
@@ -79,7 +92,7 @@ public class CellCityGenerationScript : MonoBehaviour
     {
         for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
         {
-            for (int layerIndex = 0; layerIndex + 1 < layerCount - 1; layerIndex++)
+            for (int layerIndex = 0; layerIndex < layerCount - 1; layerIndex++)
             {
                 CellScript cellScript = cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>();
                 foreach (KeyValuePair<string, GameObject> edge in cellScript.edges)
@@ -94,7 +107,7 @@ public class CellCityGenerationScript : MonoBehaviour
     {
         for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
         {
-            for (int layerIndex = 0; layerIndex + 1 < layerCount - 1; layerIndex++)
+            for (int layerIndex = 0; layerIndex < layerCount - 1; layerIndex++)
             {
                 CellScript cellScript = cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>();
                 if (cellScript.connectedCells.ContainsKey("forward") &&
@@ -136,7 +149,7 @@ public class CellCityGenerationScript : MonoBehaviour
     {
         for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
         {
-            for (int layerIndex = 0; layerIndex + 1 < layerCount - 1; layerIndex++)
+            for (int layerIndex = 0; layerIndex < layerCount - 1; layerIndex++)
             {
                 // Get cell script
                 CellScript cellScript = cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>();
@@ -147,31 +160,48 @@ public class CellCityGenerationScript : MonoBehaviour
                 Vector3 innerCW = cellScript.cornersNodes["innerCW"].transform.position;
                 Vector3 innerCCW = cellScript.cornersNodes["innerCCW"].transform.position;
 
+                GameObject edgeForward = null, edgeRight = null, edgeBack = null, edgeLeft = null;
+
                 // Forward edge
-                GameObject edgeForward = Instantiate(edgePrefab, Vector3.Lerp(outerCCW, outerCW, 0.5f), Quaternion.identity);
-                edgeForward.GetComponent<EdgeScript>().point1 = outerCCW;
-                edgeForward.GetComponent<EdgeScript>().point2 = outerCW;
+                if (cellScript.connectedCells.ContainsKey("forward"))
+                {
+                    edgeForward = Instantiate(edgePrefab, Vector3.Lerp(outerCCW, outerCW, 0.5f), Quaternion.identity);
+                    edgeForward.GetComponent<EdgeScript>().point1 = outerCCW;
+                    edgeForward.GetComponent<EdgeScript>().point2 = outerCW;
+                }
 
                 // Right edge
-                GameObject edgeRight = Instantiate(edgePrefab, Vector3.Lerp(outerCW, innerCW, 0.5f), Quaternion.identity);
-                edgeRight.GetComponent<EdgeScript>().point1 = outerCW;
-                edgeRight.GetComponent<EdgeScript>().point2 = innerCW;
+                if (cellScript.connectedCells.ContainsKey("right"))
+                {
+
+                    edgeRight = Instantiate(edgePrefab, Vector3.Lerp(outerCW, innerCW, 0.5f), Quaternion.identity);
+                    edgeRight.GetComponent<EdgeScript>().point1 = outerCW;
+                    edgeRight.GetComponent<EdgeScript>().point2 = innerCW;
+                }
 
                 // Back edge
-                GameObject edgeBack = Instantiate(edgePrefab, Vector3.Lerp(innerCW, innerCCW, 0.5f), Quaternion.identity);
-                edgeBack.GetComponent<EdgeScript>().point1 = innerCW;
-                edgeBack.GetComponent<EdgeScript>().point2 = innerCCW;
+                if (cellScript.connectedCells.ContainsKey("back"))
+                {
+
+                    edgeBack = Instantiate(edgePrefab, Vector3.Lerp(innerCW, innerCCW, 0.5f), Quaternion.identity);
+                    edgeBack.GetComponent<EdgeScript>().point1 = innerCW;
+                    edgeBack.GetComponent<EdgeScript>().point2 = innerCCW;
+                }
 
                 // Left edge
-                GameObject edgeLeft = Instantiate(edgePrefab, Vector3.Lerp(innerCCW, outerCCW, 0.5f), Quaternion.identity);
-                edgeLeft.GetComponent<EdgeScript>().point1 = innerCCW;
-                edgeLeft.GetComponent<EdgeScript>().point2 = outerCCW;
+                if (cellScript.connectedCells.ContainsKey("left"))
+                {
+
+                    edgeLeft = Instantiate(edgePrefab, Vector3.Lerp(innerCCW, outerCCW, 0.5f), Quaternion.identity);
+                    edgeLeft.GetComponent<EdgeScript>().point1 = innerCCW;
+                    edgeLeft.GetComponent<EdgeScript>().point2 = outerCCW;
+                }
 
                 // Add edges to cell
-                cellScript.edges.Add("forward", edgeForward);
-                cellScript.edges.Add("right", edgeRight);
-                cellScript.edges.Add("back", edgeBack);
-                cellScript.edges.Add("left", edgeLeft);
+                if (edgeForward != null) { cellScript.edges.Add("forward", edgeForward); }
+                if (edgeRight != null) { cellScript.edges.Add("right", edgeRight); }
+                if (edgeBack != null) { cellScript.edges.Add("back", edgeBack); }
+                if (edgeLeft != null) { cellScript.edges.Add("left", edgeLeft); }
             }
         }
     }
