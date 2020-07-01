@@ -97,3 +97,5 @@ MonoBehaviour:
   sliceWidth: 0
   nodePrefab: {fileID: 2553321170709485316, guid: 30d31113c3e8e5148b78cd2706b027e2,
     type: 3}
+  cellPrefab: {fileID: 7125515334643550007, guid: 136970236723f4941a52d0d8b008aaf9,
+    type: 3}

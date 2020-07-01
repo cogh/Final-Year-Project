@@ -12,20 +12,275 @@ public class CellCityGenerationScript : MonoBehaviour
     void Start()
     {
         nodeGrid = new GameObject[sliceCount, layerCount];
+        cellGrid = new GameObject[sliceCount, layerCount - 1];
 
-        InstantiateNodes();
+        CreateCornerNodes();
 
-        ConnectNodes();
+        ConnectCornerNodes();
 
         CreateCells();
+
+        ConnectCells();
+
+        CreateEdges();
+
+        ConnectEdges();
+
+        CreateEdgeNodes();
+
+        ConnectEdgeNodes();
+
+        // Attach car to random node
+        SpawnCar(0, 0);
+    }
+
+    void SpawnCar(int x, int y)
+    {
+        GameObject car = Instantiate(carPrefab);
+        GameObject startingCell = cellGrid[x, y];
+        GameObject startingEdge = startingCell.GetComponent<CellScript>().edges["forward"];
+        GameObject startingNode = startingEdge.GetComponent<EdgeScript>().entranceNodes[0];
+        car.GetComponent<CarScript>().targetNode = startingNode;
+    }
+
+    void ConnectEdgeNodes()
+    {
+        for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
+        {
+            for (int layerIndex = 0; layerIndex + 1 < layerCount - 1; layerIndex++)
+            {
+                CellScript cellScript = cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>();
+                foreach (KeyValuePair<string, GameObject> edge in cellScript.edges)
+                {
+                    // Get scripts
+                    EdgeScript edgeScript = edge.Value.GetComponent<EdgeScript>();
+
+                    // Entrance nodes
+                    foreach (GameObject entranceNode in edgeScript.entranceNodes)
+                    {
+                        NodeScript entranceNodeScript = entranceNode.GetComponent<NodeScript>();
+                        // Connect to every entrance node on every edge
+                        foreach (KeyValuePair<string, GameObject> targetEdge in cellScript.edges)
+                        {
+                            // Get scripts
+                            EdgeScript targetEdgeScript = targetEdge.Value.GetComponent<EdgeScript>();
+                            foreach (GameObject exitNode in targetEdgeScript.exitNodes)
+                            {
+                                entranceNodeScript.connectedNodes.Add(exitNode);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    void CreateEdgeNodes()
+    {
+        for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
+        {
+            for (int layerIndex = 0; layerIndex + 1 < layerCount - 1; layerIndex++)
+            {
+                CellScript cellScript = cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>();
+                foreach (KeyValuePair<string, GameObject> edge in cellScript.edges)
+                {
+                    edge.Value.GetComponent<EdgeScript>().CreateNodes();
+                }
+            }
+        }
+    }
+
+    void ConnectEdges()
+    {
+        for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
+        {
+            for (int layerIndex = 0; layerIndex + 1 < layerCount - 1; layerIndex++)
+            {
+                CellScript cellScript = cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>();
+                if (cellScript.connectedCells.ContainsKey("forward") &&
+                    cellScript.edges.ContainsKey("forward"))
+                {
+                    EdgeScript edgeScript = cellScript.edges["forward"].GetComponent<EdgeScript>();
+                    if (cellScript.connectedCells["forward"].GetComponent<CellScript>().edges.ContainsKey("back")) // Temporary check, what's wrong?
+                    {   
+                        GameObject targetEdge = cellScript.connectedCells["forward"].GetComponent<CellScript>().edges["back"];
+                        edgeScript.ConnectTo(targetEdge);
+                    }
+                }
+                if (cellScript.connectedCells.ContainsKey("right") &&
+                    cellScript.edges.ContainsKey("right"))
+                {
+                    EdgeScript edgeScript = cellScript.edges["right"].GetComponent<EdgeScript>();
+                    GameObject targetEdge = cellScript.connectedCells["right"].GetComponent<CellScript>().edges["left"];
+                    edgeScript.ConnectTo(targetEdge);
+                }
+                if (cellScript.connectedCells.ContainsKey("back") &&
+                    cellScript.edges.ContainsKey("back"))
+                {
+                    EdgeScript edgeScript = cellScript.edges["back"].GetComponent<EdgeScript>();
+                    GameObject targetEdge = cellScript.connectedCells["back"].GetComponent<CellScript>().edges["forward"];
+                    edgeScript.ConnectTo(targetEdge);
+                }
+                if (cellScript.connectedCells.ContainsKey("left") &&
+                    cellScript.edges.ContainsKey("left"))
+                {
+                    EdgeScript edgeScript = cellScript.edges["left"].GetComponent<EdgeScript>();
+                    GameObject targetEdge = cellScript.connectedCells["left"].GetComponent<CellScript>().edges["right"];
+                    edgeScript.ConnectTo(targetEdge);
+                }
+            }
+        }
+    }
+
+    void CreateEdges()
+    {
+        for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
+        {
+            for (int layerIndex = 0; layerIndex + 1 < layerCount - 1; layerIndex++)
+            {
+                // Get cell script
+                CellScript cellScript = cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>();
+
+                // Corners
+                Vector3 outerCCW = cellScript.cornersNodes["outerCCW"].transform.position;
+                Vector3 outerCW = cellScript.cornersNodes["outerCW"].transform.position;
+                Vector3 innerCW = cellScript.cornersNodes["innerCW"].transform.position;
+                Vector3 innerCCW = cellScript.cornersNodes["innerCCW"].transform.position;
+
+                // Forward edge
+                GameObject edgeForward = Instantiate(edgePrefab, Vector3.Lerp(outerCCW, outerCW, 0.5f), Quaternion.identity);
+                edgeForward.GetComponent<EdgeScript>().point1 = outerCCW;
+                edgeForward.GetComponent<EdgeScript>().point2 = outerCW;
+
+                // Right edge
+                GameObject edgeRight = Instantiate(edgePrefab, Vector3.Lerp(outerCW, innerCW, 0.5f), Quaternion.identity);
+                edgeRight.GetComponent<EdgeScript>().point1 = outerCW;
+                edgeRight.GetComponent<EdgeScript>().point2 = innerCW;
+
+                // Back edge
+                GameObject edgeBack = Instantiate(edgePrefab, Vector3.Lerp(innerCW, innerCCW, 0.5f), Quaternion.identity);
+                edgeBack.GetComponent<EdgeScript>().point1 = innerCW;
+                edgeBack.GetComponent<EdgeScript>().point2 = innerCCW;
+
+                // Left edge
+                GameObject edgeLeft = Instantiate(edgePrefab, Vector3.Lerp(innerCCW, outerCCW, 0.5f), Quaternion.identity);
+                edgeLeft.GetComponent<EdgeScript>().point1 = innerCCW;
+                edgeLeft.GetComponent<EdgeScript>().point2 = outerCCW;
+
+                // Add edges to cell
+                cellScript.edges.Add("forward", edgeForward);
+                cellScript.edges.Add("right", edgeRight);
+                cellScript.edges.Add("back", edgeBack);
+                cellScript.edges.Add("left", edgeLeft);
+            }
+        }
+    }
+
+    void ConnectCells()
+    {
+        for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
+        {
+            for (int layerIndex = 0; layerIndex < layerCount - 1; layerIndex++)
+            {
+                // Initialise cells as null
+                GameObject cellForward = null;
+                GameObject cellRight = null;
+                GameObject cellBack = null;
+                GameObject cellLeft = null;
+
+                // Set cells to adjacent (including wrapping)
+                // Forward
+                if (layerIndex + 1 < layerCount - 1)
+                {
+                    cellForward = cellGrid[sliceIndex, layerIndex + 1];
+                }
+                // Back
+                if (layerIndex - 1 >= 0)
+                {
+                    cellBack = cellGrid[sliceIndex, layerIndex - 1];
+                }
+                // Right
+                if (sliceIndex + 1 < sliceCount)
+                {
+                    cellRight = cellGrid[sliceIndex + 1, layerIndex];
+                }
+                else
+                {
+                    cellRight = cellGrid[0, layerIndex];
+                }
+                // Left
+                if (sliceIndex - 1 >= 0)
+                {
+                    cellLeft = cellGrid[sliceIndex - 1, layerIndex];
+                }
+                else
+                {
+                    cellLeft = cellGrid[sliceCount - 1, layerIndex];
+                }
+
+                // Add cell connections
+                if (cellForward != null)
+                {
+                    cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>().connectedCells.Add("forward", cellForward);
+                }
+                if (cellRight != null)
+                {
+                    cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>().connectedCells.Add("right", cellRight);
+                }
+                if (cellBack != null)
+                {
+                    cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>().connectedCells.Add("back", cellBack);
+                }
+                if (cellLeft != null)
+                {
+                    cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>().connectedCells.Add("left", cellLeft);
+                }
+            }
+        }
     }
 
     void CreateCells()
     {
+        for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
+        {
+            for (int layerIndex = 0; layerIndex + 1 < layerCount; layerIndex++)
+            {
+                // Get corner nodes
+                GameObject innerCW, outerCW, innerCCW, outerCCW;
+                if (sliceIndex + 1 < sliceCount)
+                {
+                    innerCW = nodeGrid[sliceIndex + 1, layerIndex];
+                    outerCW = nodeGrid[sliceIndex + 1, layerIndex + 1];
+                }
+                else
+                {
+                    innerCW = nodeGrid[0, layerIndex];
+                    outerCW = nodeGrid[0, layerIndex + 1];
+                }
+                innerCCW = nodeGrid[sliceIndex, layerIndex];
+                outerCCW = nodeGrid[sliceIndex, layerIndex + 1];
 
+                // Get central position
+                Vector3 cellPosition = 
+                    (innerCW.transform.position + innerCCW.transform.position + 
+                     outerCW.transform.position + outerCCW.transform.position) /  4;
+
+                // Create cell
+                GameObject newCell = Instantiate(cellPrefab, cellPosition, new Quaternion());
+
+                // Add corners
+                newCell.GetComponent<CellScript>().cornersNodes.Add("innerCW", innerCW);
+                newCell.GetComponent<CellScript>().cornersNodes.Add("outerCW", outerCW);
+                newCell.GetComponent<CellScript>().cornersNodes.Add("innerCCW", innerCCW);
+                newCell.GetComponent<CellScript>().cornersNodes.Add("outerCCW", outerCCW);
+
+                // Reference cell in grid
+                cellGrid[sliceIndex, layerIndex] = newCell;
+            }
+        }
     }
 
-    void InstantiateNodes()
+    void CreateCornerNodes()
     {
         for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
         {
@@ -43,7 +298,7 @@ public class CellCityGenerationScript : MonoBehaviour
         }
     }
 
-    void ConnectNodes()
+    void ConnectCornerNodes()
     {
         for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
         {
@@ -113,6 +368,9 @@ public class CellCityGenerationScript : MonoBehaviour
     public float layerWidth;
     public float sliceWidth;
     public GameObject[,] nodeGrid;
+    public GameObject[,] cellGrid;
     public GameObject nodePrefab;
     public GameObject cellPrefab;
+    public GameObject edgePrefab;
+    public GameObject carPrefab;
 }

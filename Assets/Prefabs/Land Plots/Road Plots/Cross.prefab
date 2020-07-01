@@ -140,7 +140,7 @@ GameObject:
   - component: {fileID: 8506049493161116468}
   - component: {fileID: 5088163486290579506}
   m_Layer: 0
-  m_Name: FRBL
+  m_Name: Cross
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
