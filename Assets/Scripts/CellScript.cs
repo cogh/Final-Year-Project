@@ -47,6 +47,7 @@ public class CellScript : MonoBehaviour
         }
     }
 
+    public bool accessible;
     public Dictionary<string, GameObject> cornersNodes = new Dictionary<string, GameObject>();
     public Dictionary<string, GameObject> edges = new Dictionary<string, GameObject>();
     public Dictionary<string, GameObject> connectedCells = new Dictionary<string, GameObject>();

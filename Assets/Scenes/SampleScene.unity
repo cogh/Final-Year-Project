@@ -236,6 +236,11 @@ PrefabInstance:
       propertyPath: camera
       value: 
       objectReference: {fileID: 963194225}
+    - target: {fileID: 2703628795079287578, guid: a4b3fb0f87a330140be9ac66c0477c5d,
+        type: 3}
+      propertyPath: m_Enabled
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 5379071433294640168, guid: a4b3fb0f87a330140be9ac66c0477c5d,
         type: 3}
       propertyPath: m_LocalPosition.x
@@ -299,12 +304,12 @@ PrefabInstance:
     - target: {fileID: 8892246714198572044, guid: a4b3fb0f87a330140be9ac66c0477c5d,
         type: 3}
       propertyPath: layerCount
-      value: 8
+      value: 16
       objectReference: {fileID: 0}
     - target: {fileID: 8892246714198572044, guid: a4b3fb0f87a330140be9ac66c0477c5d,
         type: 3}
       propertyPath: sliceCount
-      value: 16
+      value: 32
       objectReference: {fileID: 0}
     - target: {fileID: 8892246714198572044, guid: a4b3fb0f87a330140be9ac66c0477c5d,
         type: 3}
@@ -328,6 +333,11 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 2553321170709485316, guid: b7486d081db538b46a1ff1ae7310ebc0,
         type: 3}
+    - target: {fileID: 8892246714198572044, guid: a4b3fb0f87a330140be9ac66c0477c5d,
+        type: 3}
+      propertyPath: m_Enabled
+      value: 1
+      objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: a4b3fb0f87a330140be9ac66c0477c5d, type: 3}
 --- !u!1001 &935657324736404987
