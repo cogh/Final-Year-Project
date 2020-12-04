@@ -30,6 +30,8 @@ public class CellCityGenerationScript : MonoBehaviour
 
         ConnectEdgeNodes();
 
+        CreateBuildings();
+
         // Attach car to random node
         for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
         {
@@ -38,6 +40,22 @@ public class CellCityGenerationScript : MonoBehaviour
                 if (cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>().accessible == true)
                 {
                     SpawnCar(sliceIndex, layerIndex);
+                }
+            }
+        }
+    }
+
+    void CreateBuildings()
+    {
+        for (int sliceIndex = 0; sliceIndex < sliceCount; sliceIndex++)
+        {
+            for (int layerIndex = 0; layerIndex < layerCount - 1; layerIndex++)
+            {
+                CellScript cellScript = cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>();
+                Vector3 pos = cellScript.transform.position;
+                if (cellGrid[sliceIndex, layerIndex].GetComponent<CellScript>().accessible == false)
+                {
+                    Instantiate(buildingPrefabs[UnityEngine.Random.Range(0, buildingPrefabs.Count)], pos, new Quaternion());
                 }
             }
         }
@@ -456,4 +474,5 @@ public class CellCityGenerationScript : MonoBehaviour
     public GameObject cellPrefab;
     public GameObject edgePrefab;
     public GameObject carPrefab;
+    public List<GameObject> buildingPrefabs;
 }

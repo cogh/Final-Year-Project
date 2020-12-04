@@ -5,6 +5,11 @@ using UnityEngine;
 public class CellScript : MonoBehaviour
 {
 
+    private void Start()
+    {
+        
+    }
+
     public void CreateEdge(Vector3 point1, Vector3 point2, string key)
     {
         GameObject newEdge = Instantiate(edgePrefab);
@@ -47,6 +52,7 @@ public class CellScript : MonoBehaviour
         }
     }
 
+    
     public bool accessible;
     public Dictionary<string, GameObject> cornersNodes = new Dictionary<string, GameObject>();
     public Dictionary<string, GameObject> edges = new Dictionary<string, GameObject>();
