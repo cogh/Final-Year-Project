@@ -57,4 +57,5 @@ public class NodeScript : MonoBehaviour
     public Color connectionColour;
     public Color connectionSelectedColour;
     public float positionDisplayWidth;
+    public string type;
 }

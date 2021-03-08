@@ -30,7 +30,7 @@ public class NodeDrawerScript : MonoBehaviour
     void Update()
     {
         UpdateCursor();
-        CreateNode();
+        CreateNodeFromCursor();
         ConnectNodes();
 
         // Create tween nodes
@@ -42,137 +42,7 @@ public class NodeDrawerScript : MonoBehaviour
         // Create fill nodes
         if (Input.GetKeyDown(KeyCode.Alpha2))
         {
-            // Create connection list
-            List<Connection> connections = new List<Connection>();
-
-            // Create loop list
-            List<List<GameObject>> loopList = new List<List<GameObject>>();
-
-            // Add all connections
-            foreach (GameObject node in nodeList)
-            {
-                NodeScript nodeScript = node.GetComponent<NodeScript>();
-                foreach (GameObject connectedNode in nodeScript.connectedNodes)
-                {
-                    connections.Add(new Connection(node, connectedNode));
-                }
-            }
-
-            // For each connection, search for loops
-            foreach (Connection connection in connections) // remember u gotta neglect going backwards on lonely nodes, or something, maybe do nothing if only 1 connection?
-            {
-                // Get nodes
-                GameObject fromNode = connection.from;
-                GameObject toNode   = connection.to  ;
-
-                // Left loop
-                List<GameObject> loop = new List<GameObject>();
-                GameObject firstNode   = fromNode;
-                GameObject lastNode    = fromNode;
-                GameObject currentNode = toNode  ;
-                loop.Add(firstNode);
-                int count = 0;
-                while (currentNode != firstNode && currentNode.GetComponent<NodeScript>().connectedNodes.Count > 1 && count < 1000)
-                {
-                    // Get scripts
-                    NodeScript currentScript = currentNode.GetComponent<NodeScript>();
-                    NodeScript lastScript    = lastNode   .GetComponent<NodeScript>();
-
-                    // Get last to current
-                    Vector3 lastToCurrentVector = currentNode.transform.position - lastNode.transform.position;
-
-                    // Initialise best node arbitrarily
-                    GameObject bestNextNode = currentScript.connectedNodes[0]; // needs to not include self, unbeatable?
-
-                    // If best is last, then change
-                    if (bestNextNode == lastNode) 
-                    {
-                        bestNextNode = currentScript.connectedNodes[1]; 
-                    }
-
-                    // Find correct next node (leftmost/ccw)
-                    foreach (GameObject nextNode in currentScript.connectedNodes) // NEXTNODE SHOULD NEVER BE PREVIOUS FIX THIS
-                    {
-                        // Get current to best angle - use current to last as base, and current to next/best to evaluate
-                        Vector3 currentToBestVector = bestNextNode.transform.position - currentNode.transform.position;
-                        float bestAngle = Vector3.SignedAngle(lastToCurrentVector, currentToBestVector, Vector3.up); // I understand the problem now. Signed doesnt work how I thought, has + and -
-
-                        // Get current to next angle
-                        Vector3 currentToNextVector = nextNode.transform.position - currentNode.transform.position;
-                        float nextAngle = Vector3.SignedAngle(lastToCurrentVector, currentToNextVector, Vector3.up);
-
-                        // Evaluate and replace (if better)
-                        if (nextAngle < bestAngle && nextNode != lastNode)
-                        {
-                            bestNextNode = nextNode;
-                        }
-                    }
-
-                    // Add current node to loop
-                    loop.Add(currentNode);
-
-                    // Increment node
-                    lastNode = currentNode;
-                    currentNode = bestNextNode;
-
-                    count++;
-                }
-                
-                // Add if loop is valid
-                if (currentNode == firstNode)
-                {
-                    loopList.Add(loop); // Seems to add correct loop, but also some invalids, or possibly slightly different duplicates?
-
-                    // I wonder if perhaps it is reversing, and counting the previous item as a loop?
-                }
-
-                // Don't think right loop is needed here but maybe
-            }
-
-            // Make only unique set of loops
-            List<List<GameObject>> uniqueLoopList = new List<List<GameObject>>(); // NEED TO CHECK IF THIS ALGORITHM GIVES FALSE POSITIVE ON DIFFERENT SIZED LOOPS
-            foreach (List<GameObject> loop in loopList)
-            {
-                // Find if loop exists in unique loops
-                bool loopFound = false;
-                foreach (List<GameObject> uniqueLoop in uniqueLoopList)
-                {
-                    // See if loops are identical (same nodes)
-                    bool containsSameNodes = true;
-                    foreach(GameObject node in loop)
-                    {
-                        if (!uniqueLoop.Contains(node))
-                        {
-                            containsSameNodes = false;
-                        }
-                    }
-                    // If loop is found in unique loops, has already been added (loop is found)
-                    if (containsSameNodes == true && loop.Count == uniqueLoop.Count)
-                    {
-                        loopFound = true;
-                    }
-                }
-                // Add loop if not found
-                if (!loopFound)
-                {
-                    uniqueLoopList.Add(loop);
-                }
-            }
-
-            // For every loop, generate node in the middle
-            foreach (List<GameObject> loop in uniqueLoopList)
-            {
-                Vector3 averagePosition = Vector3.zero;
-                int count = 0;
-                foreach (GameObject node in loop)
-                {
-                    averagePosition += node.transform.position;
-                    count++;
-                }
-                averagePosition /= count;
-
-                Instantiate(nodePrefab, averagePosition, Quaternion.identity);
-            }
+            CreateFillNodes();
         }
 
         // Generate star cells from all nodes
@@ -180,10 +50,11 @@ public class NodeDrawerScript : MonoBehaviour
         {
             foreach (GameObject node in nodeList)
             {
-                GenerateStarCell(node, 1.0f);
+                GenerateStarCell(node, 0.1f);
             }
         }    
     }
+
     void UpdateCursor()
     {
         Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
@@ -197,13 +68,16 @@ public class NodeDrawerScript : MonoBehaviour
     }
 
 
-    void CreateNode()
+    void CreateNodeFromCursor()
     {
         if (Input.GetMouseButtonDown(0))
         {
-            nodeList.Add(Instantiate(nodePrefab, cursor.transform.position, new Quaternion()));
+            GameObject node = Instantiate(nodePrefab, cursor.transform.position, new Quaternion());
+            node.GetComponent<NodeScript>().type = "star";
+            nodeList.Add(node);
         }
     }
+
     void ConnectNodes()
     {
         switch (connectState)
@@ -230,7 +104,7 @@ public class NodeDrawerScript : MonoBehaviour
                 break;
         }
     }
-    void CreateTweenNodes()
+    void CreateTweenNodes() // Subdivides nodeweb/graph
     {
         // Create tween nodes
         if (Input.GetKeyDown(KeyCode.Alpha1))
@@ -244,6 +118,7 @@ public class NodeDrawerScript : MonoBehaviour
                 {
                     // Remove connection from connectedNode to avoid duplicates
                     NodeScript connectedNodeScript = connectedNode.GetComponent<NodeScript>();
+                    connectedNodeScript.connectedNodes.Remove(node);
 
                     // Create connection object
                     Connection nodeConnection = new Connection(node, connectedNode);
@@ -261,6 +136,7 @@ public class NodeDrawerScript : MonoBehaviour
                 // Create node
                 Vector3 tweenPosition = Vector3.Lerp(fromNode.transform.position, toNode.transform.position, 0.5f);
                 GameObject tweenNode = Instantiate(nodePrefab, tweenPosition, Quaternion.identity);
+                tweenNode.GetComponent<NodeScript>().type = "tween";
                 nodeList.Add(tweenNode);
 
                 // Get scripts
@@ -280,6 +156,200 @@ public class NodeDrawerScript : MonoBehaviour
             }
         }
     }
+
+    List<List<GameObject>> DetectLoops(List<GameObject> nodes)
+    {
+        // Create loop list
+        List<List<GameObject>> loopList = new List<List<GameObject>>();
+
+        // Create connection list
+        List<Connection> connections = new List<Connection>();
+
+        // Add all connections
+        foreach (GameObject node in nodes)
+        {
+            NodeScript nodeScript = node.GetComponent<NodeScript>();
+            foreach (GameObject connectedNode in nodeScript.connectedNodes)
+            {
+                connections.Add(new Connection(node, connectedNode));
+            }
+        }
+
+        // For each connection, search for loops
+        foreach (Connection connection in connections) // remember u gotta neglect going backwards on lonely nodes, or something, maybe do nothing if only 1 connection?
+        {
+            // Get nodes
+            GameObject fromNode = connection.from;
+            GameObject toNode = connection.to;
+
+            // Left loop
+            List<GameObject> loop = new List<GameObject>();
+            GameObject firstNode = fromNode;
+            GameObject lastNode = fromNode;
+            GameObject currentNode = toNode;
+            loop.Add(firstNode);
+            while (currentNode != firstNode && currentNode.GetComponent<NodeScript>().connectedNodes.Count > 1)
+            {
+                // Get scripts
+                NodeScript currentScript = currentNode.GetComponent<NodeScript>();
+                NodeScript lastScript = lastNode.GetComponent<NodeScript>();
+
+                // Get last to current
+                Vector3 lastToCurrentVector = currentNode.transform.position - lastNode.transform.position;
+
+                // Initialise best node arbitrarily
+                GameObject bestNextNode = currentScript.connectedNodes[0]; // needs to not include self, unbeatable?
+
+                // If best is last, then change
+                if (bestNextNode == lastNode)
+                {
+                    bestNextNode = currentScript.connectedNodes[1];
+                }
+
+                // Find correct next node (leftmost/ccw)
+                foreach (GameObject nextNode in currentScript.connectedNodes) // NEXTNODE SHOULD NEVER BE PREVIOUS FIX THIS
+                {
+                    // Get current to best angle - use current to last as base, and current to next/best to evaluate
+                    Vector3 currentToBestVector = bestNextNode.transform.position - currentNode.transform.position;
+                    float bestAngle = Vector3.SignedAngle(lastToCurrentVector, currentToBestVector, Vector3.up); // I understand the problem now. Signed doesnt work how I thought, has + and -
+
+                    // Get current to next angle
+                    Vector3 currentToNextVector = nextNode.transform.position - currentNode.transform.position;
+                    float nextAngle = Vector3.SignedAngle(lastToCurrentVector, currentToNextVector, Vector3.up);
+
+                    // Evaluate and replace (if better)
+                    if (nextAngle < bestAngle && nextNode != lastNode)
+                    {
+                        bestNextNode = nextNode;
+                    }
+                }
+
+                // Add current node to loop
+                loop.Add(currentNode);
+
+                // Increment node
+                lastNode = currentNode;
+                currentNode = bestNextNode;
+            }
+
+            // Add if loop is valid
+            if (currentNode == firstNode)
+            {
+                loopList.Add(loop); // Seems to add correct loop, but also some invalids, or possibly slightly different duplicates?
+
+                // I wonder if perhaps it is reversing, and counting the previous item as a loop?
+            }
+        }
+
+        // Return looplist
+        return loopList;
+    }
+
+    List<List<GameObject>> CreateUniqueLoopList(List<List<GameObject>> loopList)
+    {
+        // Create loop list
+        List<List<GameObject>> uniqueLoopList = new List<List<GameObject>>(); // NEED TO CHECK IF THIS ALGORITHM GIVES FALSE POSITIVE ON DIFFERENT SIZED LOOPS
+
+        // Iterate through loops
+        foreach (List<GameObject> loop in loopList)
+        {
+            // Find if loop exists in unique loops
+            bool loopFound = false;
+            foreach (List<GameObject> uniqueLoop in uniqueLoopList)
+            {
+                // See if loops are identical (same nodes)
+                bool containsSameNodes = true;
+                foreach (GameObject node in loop)
+                {
+                    if (!uniqueLoop.Contains(node))
+                    {
+                        containsSameNodes = false;
+                    }
+                }
+                // If loop is found in unique loops, has already been added (loop is found)
+                if (containsSameNodes == true && loop.Count == uniqueLoop.Count)
+                {
+                    loopFound = true;
+                }
+            }
+            // Add loop if not found
+            if (!loopFound)
+            {
+                uniqueLoopList.Add(loop);
+            }
+        }
+
+        // Return unique loop list
+        return uniqueLoopList;
+    }
+
+    void CreateFillNodes()
+    {
+        // Create loop list
+        List<List<GameObject>> loopList = new List<List<GameObject>>();
+
+        // Populate looplist
+        loopList = DetectLoops(nodeList);
+
+        // Make only unique set of loops
+        loopList = CreateUniqueLoopList(loopList);
+
+        // Remove largest loop as it is an inverse loop
+        if (loopList.Count > 1)
+        {
+            List<GameObject> biggestLoop = loopList[0];
+            foreach (List<GameObject> loop in loopList)
+            {
+                if (loop.Count > biggestLoop.Count)
+                {
+                    biggestLoop = loop;
+                }
+            }
+            loopList.Remove(biggestLoop);
+        }
+
+        // For every loop, generate node in the middle
+        foreach (List<GameObject> loop in loopList)
+        {
+            Vector3 averagePosition = Vector3.zero;
+            int count = 0;
+            foreach (GameObject node in loop)
+            {
+                averagePosition += node.transform.position;
+                count++;
+            }
+            averagePosition /= count;
+
+            // Instantiate node
+            GameObject fillNode = Instantiate(nodePrefab, averagePosition, Quaternion.identity);
+
+            // Set node connections to all surrounding tween nodes
+            NodeScript nodeScript = fillNode.GetComponent<NodeScript>();
+            foreach (GameObject node in loop)
+            {
+                if (node.GetComponent<NodeScript>().type == "tween")
+                {
+                    nodeScript.connectedNodes.Add(node);
+                }
+            }
+
+            // Add to list
+            nodeList.Add(fillNode);
+        }
+
+        // Turn all tweens in loops into stars - undecided on whether this is a good idea, but allows for repeated subdivision
+        foreach (List<GameObject> loop in loopList)
+        {
+            foreach (GameObject node in loop)
+            {
+                if (node.GetComponent<NodeScript>().type == "tween")
+                {
+                    node.GetComponent<NodeScript>().type = "star";
+                }
+            }
+        }
+    }
+
     void GenerateStarCell(GameObject originNode, float radius)
     {
         // Original node
