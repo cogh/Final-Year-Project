@@ -38,6 +38,30 @@ public class EdgeScript : MonoBehaviour
         targetEdge = targetEdge_;
     }
 
+    private void OnDrawGizmos()
+    {
+        // Draw self
+        Gizmos.color = color;
+        Gizmos.DrawWireSphere(transform.position, gizmoSphereWidth);
+
+        // Draw connections
+        Gizmos.color = color;
+        Gizmos.DrawLine(fromNode.transform.position, toNode.transform.position);
+    }
+
+    private void OnDrawGizmosSelected()
+    {
+        // Draw self
+        Gizmos.color = selectedColor;
+        Gizmos.DrawWireSphere(transform.position, gizmoSphereWidth);
+
+        // Draw connections
+        Gizmos.color = selectedColor;
+        Gizmos.DrawLine(fromNode.transform.position, toNode.transform.position);
+    }
+
+    public GameObject fromNode;
+    public GameObject toNode;
     public List<GameObject> exitNodes;
     public List<GameObject> entranceNodes;
     public GameObject nodePrefab;
@@ -48,4 +72,7 @@ public class EdgeScript : MonoBehaviour
     public GameObject parentCell;
     public GameObject targetCell;
     public GameObject targetEdge;
+    public Color color;
+    public Color selectedColor;
+    public float gizmoSphereWidth;
 }

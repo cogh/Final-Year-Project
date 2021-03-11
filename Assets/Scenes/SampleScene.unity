@@ -585,6 +585,18 @@ PrefabInstance:
       propertyPath: m_Enabled
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 2351523084474707598, guid: 01a2dbb6792165946a5dc4e65c78fc85,
+        type: 3}
+      propertyPath: cellPrefab
+      value: 
+      objectReference: {fileID: 7125515334643550007, guid: 136970236723f4941a52d0d8b008aaf9,
+        type: 3}
+    - target: {fileID: 2351523084474707598, guid: 01a2dbb6792165946a5dc4e65c78fc85,
+        type: 3}
+      propertyPath: edgePrefab
+      value: 
+      objectReference: {fileID: 2553321170709485316, guid: b7486d081db538b46a1ff1ae7310ebc0,
+        type: 3}
     - target: {fileID: 6693442875898704927, guid: 01a2dbb6792165946a5dc4e65c78fc85,
         type: 3}
       propertyPath: m_Name

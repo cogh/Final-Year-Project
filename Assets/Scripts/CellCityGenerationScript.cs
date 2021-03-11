@@ -8,7 +8,20 @@ using UnityEngine.Rendering;
 
 public class CellCityGenerationScript : MonoBehaviour
 {
+    /*
+     * Function no longer works, as CellScript was changed to accomodate new cells
+     * Old CellScript used a Dictionary for storing its member data (edges, corners, etc.)
+     * and this script relied on that, as each cell had a localised idea of what
+     * Forward, Left, Right, Backward meant in terms of connecting cells
+     * Will ideally fix this at a later date so it can still be used,
+     * but as of now the script is moot.
+     * 
+     * For future sake, I think the easiest way to fix this will just be to have
+     * left, right etc be represented as consistent integers
+     */
+    
     // Start is called before the first frame update
+    /*
     void Start()
     {
         nodeGrid = new GameObject[sliceCount, layerCount];
@@ -475,4 +488,5 @@ public class CellCityGenerationScript : MonoBehaviour
     public GameObject edgePrefab;
     public GameObject carPrefab;
     public List<GameObject> buildingPrefabs;
+    */
 }

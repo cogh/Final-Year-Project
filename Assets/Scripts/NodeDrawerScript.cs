@@ -45,14 +45,105 @@ public class NodeDrawerScript : MonoBehaviour
             CreateFillNodes();
         }
 
-        // Generate star cells from all nodes
+        // Create all cells as children of their parent nodes and inherit connections
         if (Input.GetKeyDown(KeyCode.Alpha3))
+        {
+            // Create cells
+            foreach (GameObject node in nodeList)
+            {
+                // Get node script
+                NodeScript nodeScript = node.GetComponent<NodeScript>();
+
+                // Create cell
+                GameObject cell = Instantiate(cellPrefab, node.transform);
+
+                // Get cell script
+                CellScript cellScript = cell.GetComponent<CellScript>();
+
+                // Inherit type
+                cellScript.type = nodeScript.type;
+
+                // Connect cell to node
+                nodeScript.cell = cell;
+                cellScript.parentNode = node;
+                
+                // Add to cell list
+                cellList.Add(cell);
+            }
+
+            // Inherit connections
+            foreach (GameObject node in nodeList)
+            {
+                // Get node and cell script
+                NodeScript nodeScript = node.GetComponent<NodeScript>();
+                GameObject cell = nodeScript.cell;
+                CellScript cellScript = cell.GetComponent<CellScript>();
+
+                // Inherit connections
+                foreach (GameObject connectedNode in nodeScript.connectedNodes)
+                {
+                    cellScript.connectedCells.Add(connectedNode.GetComponent<NodeScript>().cell);
+                }
+            }
+        }
+
+        // Generate star cell edges
+        if (Input.GetKeyDown(KeyCode.Alpha4))
         {
             foreach (GameObject node in nodeList)
             {
-                GenerateStarCell(node, 0.1f);
+                if (node.GetComponent<NodeScript>().type == "star")
+                {
+                    GameObject cell = node.GetComponent<NodeScript>().cell;
+                    GenerateStarCellEdges(cell, 0.5f);
+                }
             }
-        }    
+        }
+
+        // Generate tween cell edges
+        if (Input.GetKeyDown(KeyCode.Alpha5))
+        {
+            foreach (GameObject node in nodeList)
+            {
+                // Get relevant node/cell
+                NodeScript nodeScript = node.GetComponent<NodeScript>();
+                GameObject cell = nodeScript.cell;
+                CellScript cellScript = cell.GetComponent<CellScript>();
+
+                // Adopt edges of adjacent star cells
+                if (nodeScript.type == "tween")
+                {
+                    // Process connected nodes
+                    foreach (GameObject connectedCell in cellScript.connectedCells)
+                    {
+                        CellScript connectedCellScript = connectedCell.GetComponent<CellScript>();
+                        // Adopt edges of star nodes
+                        if (connectedCellScript.type == "star")
+                        {
+                            // Get relevant edge
+                            int targetIndex = 0;
+                            for (int i = 0; i < connectedCellScript.connectedCells.Count; i++)
+                            {
+                                GameObject connectedCellConnection = connectedCellScript.connectedCells[i];
+                                if (connectedCellConnection == cell)
+                                {
+                                    targetIndex = i;
+                                }
+                            }
+
+                            // Select edge
+                            GameObject edgeToAdopt = connectedCellScript.edges[targetIndex]; // Edge doesn't current correlate. Needs to be fixed in edge generation
+
+                            // Adopt edge
+                            cellScript.edges.Add(edgeToAdopt);
+                        }
+                    }
+                }
+
+                // Create new tween edges
+
+            }
+        }
     }
 
     void UpdateCursor()
@@ -106,7 +197,16 @@ public class NodeDrawerScript : MonoBehaviour
     }
     void CreateTweenNodes() // Subdivides nodeweb/graph
     {
-        // Create tween nodes
+        // Turn all current nodes into star nodes so repeated subdivision is possible
+        foreach (GameObject node in nodeList)
+        {
+            if (node.GetComponent<NodeScript>().type != "star")
+            {
+                node.GetComponent<NodeScript>().type = "star";
+            }
+        }
+
+        // Create new tween nodes
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
             // Get all connections between nodes
@@ -336,34 +436,22 @@ public class NodeDrawerScript : MonoBehaviour
             // Add to list
             nodeList.Add(fillNode);
         }
-
-        // Turn all tweens in loops into stars - undecided on whether this is a good idea, but allows for repeated subdivision
-        foreach (List<GameObject> loop in loopList)
-        {
-            foreach (GameObject node in loop)
-            {
-                if (node.GetComponent<NodeScript>().type == "tween")
-                {
-                    node.GetComponent<NodeScript>().type = "star";
-                }
-            }
-        }
     }
 
-    void GenerateStarCell(GameObject originNode, float radius)
+    void GenerateStarCellEdges(GameObject originCell, float radius)
     {
         // Original node
-        NodeScript originNodeScript = originNode.GetComponent<NodeScript>();
-        Vector3 originPoint = originNode.transform.position;
+        CellScript originCellScript = originCell.GetComponent<CellScript>();
+        Vector3 originPoint = originCell.transform.position;
 
         // Get connected nodes
-        List<GameObject> connectedNodes = originNodeScript.connectedNodes;
+        List<GameObject> connectedCells = originCellScript.connectedCells;
 
         // Create connection midpoints
         List<Vector3> connectionPoints = new List<Vector3>();
-        foreach (GameObject connectedNode in connectedNodes)
+        foreach (GameObject connectedCell in connectedCells)
         {
-            Vector3 connectionPoint = connectedNode.transform.position;
+            Vector3 connectionPoint = connectedCell.transform.position;
             Vector3 connectionVector = (originPoint - connectionPoint).normalized;
             connectionPoints.Add(connectionPoint);
         }
@@ -439,30 +527,63 @@ public class NodeDrawerScript : MonoBehaviour
         {
             Vector3 midPoint = originPoint - (vector * radius);
             connectionMidPoints.Add(midPoint);
-            // Debug
-            //GameObject midPointNode = Instantiate(nodePrefab, midPoint, new Quaternion());
-            //midPointNode.GetComponent<NodeScript>().positionColour = Color.blue;
         }
 
-        // Create final nodes
+        // Create corner nodes
         List<GameObject> cellCornerNodes = new List<GameObject>();
         foreach (Vector3 lerpedMidPoint in connectionMidPoints)
         {
             // Debug
-            GameObject node = Instantiate(nodePrefab, lerpedMidPoint, new Quaternion());
+            GameObject node = Instantiate(nodePrefab, lerpedMidPoint, new Quaternion(), originCell.transform);
             node.GetComponent<NodeScript>().positionColour = Color.green;
             cellCornerNodes.Add(node);
         }
 
-        // Connect final nodes
+        // Connect corner nodes
         for (int i = 0; i < cellCornerNodes.Count; i++)
         {
-            GameObject cellCornerNode1, cellCornerNode2;
-            cellCornerNode1 = cellCornerNodes[i];
-            if (i < cellCornerNodes.Count - 1) { cellCornerNode2 = cellCornerNodes[i + 1]; }
-            else { cellCornerNode2 = cellCornerNodes[0]; }
+            //GameObject cellCornerNode1, cellCornerNode2;
+            //cellCornerNode1 = cellCornerNodes[i];
+            //if (i < cellCornerNodes.Count - 1) { cellCornerNode2 = cellCornerNodes[i + 1]; }
+            //else { cellCornerNode2 = cellCornerNodes[0]; }
+        }
 
-            cellCornerNode1.GetComponent<NodeScript>().connectedNodes.Add(cellCornerNode2);
+        // Create cell edges based on nodes
+        GameObject firstNode, secondNode;
+        for (int i = 1; i <= cellCornerNodes.Count; i++)
+        {
+            firstNode = cellCornerNodes[i - 1];
+            if (i == cellCornerNodes.Count)
+            {
+                secondNode = cellCornerNodes[0];
+            }
+            else
+            {
+                secondNode = cellCornerNodes[i];
+            }
+
+            Vector3 positionMid = Vector3.Lerp(firstNode.transform.position, secondNode.transform.position, 0.5f);
+
+            GameObject edge = Instantiate(edgePrefab, originCell.transform);
+            edge.transform.position = positionMid;
+            EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
+
+            edgeScript.fromNode = firstNode;
+            edgeScript.toNode = secondNode;
+
+            originCellScript.edges.Add(edge);
+            /*
+             * There's a problem with this, in that the index of a new edge does not correlate with the connection in connectedCells
+             * This is problematic
+             * Currently, a correlation by convention between the two is supposed to help connect tween cells to star cells
+             * I need to fix this
+             * Will need to think about how. Creating false connections is one possibility, but not comfortable with that...
+             * Need to think on this
+             * It's also possible to fix this later on with geometry, but that feels a bit gross
+             * Another solution...
+             * I could fix it mathematically *HERE*, and use that to determine which cell each edge should connect to
+             * I sort of like this solution
+             */
         }
     }
 
@@ -493,7 +614,10 @@ public class NodeDrawerScript : MonoBehaviour
     public GameObject floor;
     Collider floorCollider;
     public GameObject nodePrefab;
+    public GameObject cellPrefab;
+    public GameObject edgePrefab;
     public List<GameObject> nodeList;
+    public List<GameObject> cellList;
     public GameObject selection;
     public GameObject cursor;
 }

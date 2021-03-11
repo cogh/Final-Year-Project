@@ -43,13 +43,19 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e95adbac1b57a5d4db2d990bc868cc0e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  fromNode: {fileID: 0}
+  toNode: {fileID: 0}
   exitNodes: []
   entranceNodes: []
   nodePrefab: {fileID: 2553321170709485316, guid: 30d31113c3e8e5148b78cd2706b027e2,
     type: 3}
   laneCount: 2
+  sidewalkWidth: 0
   point1: {x: 0, y: 0, z: 0}
   point2: {x: 0, y: 0, z: 0}
   parentCell: {fileID: 0}
   targetCell: {fileID: 0}
   targetEdge: {fileID: 0}
+  color: {r: 0.5568628, g: 0.5475024, b: 0, a: 1}
+  selectedColor: {r: 1, g: 0.9859155, b: 0, a: 1}
+  gizmoSphereWidth: 0.05

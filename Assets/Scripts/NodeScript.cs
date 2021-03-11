@@ -58,4 +58,5 @@ public class NodeScript : MonoBehaviour
     public Color connectionSelectedColour;
     public float positionDisplayWidth;
     public string type;
+    public GameObject cell;
 }

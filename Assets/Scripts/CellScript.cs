@@ -10,12 +10,12 @@ public class CellScript : MonoBehaviour
         
     }
 
-    public void CreateEdge(Vector3 point1, Vector3 point2, string key)
+    public void CreateEdge(Vector3 point1, Vector3 point2)
     {
         GameObject newEdge = Instantiate(edgePrefab);
         newEdge.GetComponent<EdgeScript>().point1 = point1;
         newEdge.GetComponent<EdgeScript>().point2 = point2;
-        edges.Add(key, newEdge);
+        edges.Add(newEdge);
     }
 
     private void OnDrawGizmos()
@@ -26,12 +26,9 @@ public class CellScript : MonoBehaviour
 
         // Draw connections
         Gizmos.color = connectionColour;
-        foreach (KeyValuePair<string, GameObject> cell in connectedCells)
+        foreach (GameObject cell in connectedCells)
         {
-            if (cell.Value != null)
-            {
-                Gizmos.DrawLine(transform.position, cell.Value.transform.position);
-            }
+            Gizmos.DrawLine(transform.position, cell.transform.position);
         }
     }
 
@@ -43,20 +40,17 @@ public class CellScript : MonoBehaviour
 
         // Draw connections
         Gizmos.color = connectionSelectedColour;
-        foreach (KeyValuePair<string, GameObject> cell in connectedCells)
+        foreach (GameObject cell in connectedCells)
         {
-            if (cell.Value != null)
-            {
-                Gizmos.DrawLine(transform.position, cell.Value.transform.position);
-            }
+            Gizmos.DrawLine(transform.position, cell.transform.position);
         }
     }
 
     
     public bool accessible;
-    public Dictionary<string, GameObject> cornersNodes = new Dictionary<string, GameObject>();
-    public Dictionary<string, GameObject> edges = new Dictionary<string, GameObject>();
-    public Dictionary<string, GameObject> connectedCells = new Dictionary<string, GameObject>();
+    public List<GameObject> cornerNodes = new List<GameObject>();
+    public List<GameObject> edges = new List<GameObject>();
+    public List<GameObject> connectedCells = new List<GameObject>();
     public Color positionColour;
     public Color positionSelectedColour;
     public Color connectionColour;
@@ -64,4 +58,6 @@ public class CellScript : MonoBehaviour
     public float positionDisplayWidth;
     public GameObject edgePrefab;
     public GameObject nodePrefab;
+    public GameObject parentNode;
+    public string type;
 }
