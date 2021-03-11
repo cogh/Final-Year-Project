@@ -62,6 +62,8 @@ public class EdgeScript : MonoBehaviour
 
     public GameObject fromNode;
     public GameObject toNode;
+    public GameObject fromCell;
+    public GameObject toCell;
     public List<GameObject> exitNodes;
     public List<GameObject> entranceNodes;
     public GameObject nodePrefab;

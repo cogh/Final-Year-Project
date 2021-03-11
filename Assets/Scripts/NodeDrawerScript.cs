@@ -66,7 +66,7 @@ public class NodeDrawerScript : MonoBehaviour
                 // Connect cell to node
                 nodeScript.cell = cell;
                 cellScript.parentNode = node;
-                
+
                 // Add to cell list
                 cellList.Add(cell);
             }
@@ -113,35 +113,79 @@ public class NodeDrawerScript : MonoBehaviour
                 // Adopt edges of adjacent star cells
                 if (nodeScript.type == "tween")
                 {
-                    // Process connected nodes
+                    // Adopt edges of adjacent star cells
                     foreach (GameObject connectedCell in cellScript.connectedCells)
                     {
                         CellScript connectedCellScript = connectedCell.GetComponent<CellScript>();
-                        // Adopt edges of star nodes
+                        // Adopt edges of star cells
                         if (connectedCellScript.type == "star")
                         {
-                            // Get relevant edge
-                            int targetIndex = 0;
-                            for (int i = 0; i < connectedCellScript.connectedCells.Count; i++)
+                            // Get edge to adopt based on which edge is connected to this cell
+                            GameObject edgeToAdopt = null;
+                            foreach (GameObject connectedCellEdge in connectedCellScript.edges)
                             {
-                                GameObject connectedCellConnection = connectedCellScript.connectedCells[i];
-                                if (connectedCellConnection == cell)
+                                EdgeScript connectedCellEdgeScript = connectedCellEdge.GetComponent<EdgeScript>();
+                                if (connectedCellEdgeScript.toCell == cell)
                                 {
-                                    targetIndex = i;
+                                    edgeToAdopt = connectedCellEdge;
                                 }
                             }
-
-                            // Select edge
-                            GameObject edgeToAdopt = connectedCellScript.edges[targetIndex]; // Edge doesn't current correlate. Needs to be fixed in edge generation
 
                             // Adopt edge
                             cellScript.edges.Add(edgeToAdopt);
                         }
                     }
+
+                    // Create new tween edges
+                    GameObject fromEdge = cellScript.edges[0];
+                    GameObject toEdge = cellScript.edges[1];
+                    GameObject tweenEdge1 = Instantiate(edgePrefab, cell.transform);
+                    if (fromEdge == null)
+                    {
+                        //
+                        int here = 0;
+                        cell.name = "yoyoyo";
+                    }
+                    tweenEdge1.GetComponent<EdgeScript>().fromNode = fromEdge.GetComponent<EdgeScript>().fromNode;
+                    tweenEdge1.GetComponent<EdgeScript>().toNode = toEdge.GetComponent<EdgeScript>().toNode;
+                    GameObject tweenEdge2 = Instantiate(edgePrefab, cell.transform);
+                    tweenEdge2.GetComponent<EdgeScript>().fromNode = fromEdge.GetComponent<EdgeScript>().toNode;
+                    tweenEdge2.GetComponent<EdgeScript>().toNode = toEdge.GetComponent<EdgeScript>().fromNode;
+                    cellScript.edges.Add(tweenEdge1);
+                    cellScript.edges.Add(tweenEdge2);
+
+                    // Need to add fromCell and toCell to tweenEdge1, and tweenEdge2
+                    // Can probably do this with clockwise logic, finding the connection in between tween connections, since can only have 2-4 connections
                 }
+            }
+        }
 
-                // Create new tween edges
+        // Generate fill cell edges
+        if (Input.GetKeyDown(KeyCode.Alpha6))
+        {
+            foreach (GameObject node in nodeList)
+            {
+                // Get relevant node/cell
+                NodeScript nodeScript = node.GetComponent<NodeScript>();
+                GameObject cell = nodeScript.cell;
+                CellScript cellScript = cell.GetComponent<CellScript>();
 
+                // Adopt edges of adjacent star cells
+                if (nodeScript.type == "fill")
+                {
+                    foreach (GameObject connectedCell in cellScript.connectedCells)
+                    {
+                        CellScript connectedCellScript = connectedCell.GetComponent<CellScript>();
+                        foreach (GameObject connectedCellEdge in connectedCellScript.edges)
+                        {
+                            EdgeScript connectedCellEdgeScript = connectedCellEdge.GetComponent<EdgeScript>();
+                            if (connectedCellEdgeScript.toCell == cell)
+                            {
+                                cellScript.edges.Add(connectedCellEdge);
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -424,14 +468,19 @@ public class NodeDrawerScript : MonoBehaviour
             GameObject fillNode = Instantiate(nodePrefab, averagePosition, Quaternion.identity);
 
             // Set node connections to all surrounding tween nodes
-            NodeScript nodeScript = fillNode.GetComponent<NodeScript>();
-            foreach (GameObject node in loop)
+            NodeScript fillNodeScript = fillNode.GetComponent<NodeScript>();
+            foreach (GameObject tweenNode in loop)
             {
-                if (node.GetComponent<NodeScript>().type == "tween")
+                NodeScript tweenNodeScript = tweenNode.GetComponent<NodeScript>();
+                if (tweenNodeScript.type == "tween")
                 {
-                    nodeScript.connectedNodes.Add(node);
+                    fillNodeScript.connectedNodes.Add(tweenNode);
+                    tweenNodeScript.connectedNodes.Add(fillNode);
                 }
             }
+
+            // Set type
+            fillNodeScript.type = "fill";
 
             // Add to list
             nodeList.Add(fillNode);
@@ -572,17 +621,37 @@ public class NodeDrawerScript : MonoBehaviour
             edgeScript.toNode = secondNode;
 
             originCellScript.edges.Add(edge);
+        }
+
+        // Connect edges to their connecting cells
+        foreach (GameObject edge in originCellScript.edges)
+        {
+            // Work out what cell the edge should connect to based on angle difference between cell->edge and cell->connectedCell
+            EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
+            GameObject cellToConnectTo = null;
+            float maxDegreesDifference = 20.0f;
+            foreach (GameObject connectedCell in connectedCells)
+            {
+                // Vectors
+                Vector3 vectorToCell = connectedCell.transform.position - originCell.transform.position;
+                Vector3 vectorToEdge = edge.transform.position - originCell.transform.position;
+
+                // Angles
+                float angleBetween = Vector3.SignedAngle(vectorToCell, vectorToEdge, Vector3.up);
+
+                // Comparison
+                if (Mathf.Abs(angleBetween) < maxDegreesDifference)
+                {
+                    cellToConnectTo = connectedCell;
+                }
+            }
+            edgeScript.fromCell = originCell;
+            edgeScript.toCell = cellToConnectTo; 
             /*
-             * There's a problem with this, in that the index of a new edge does not correlate with the connection in connectedCells
-             * This is problematic
-             * Currently, a correlation by convention between the two is supposed to help connect tween cells to star cells
-             * I need to fix this
-             * Will need to think about how. Creating false connections is one possibility, but not comfortable with that...
-             * Need to think on this
-             * It's also possible to fix this later on with geometry, but that feels a bit gross
-             * Another solution...
-             * I could fix it mathematically *HERE*, and use that to determine which cell each edge should connect to
-             * I sort of like this solution
+             * Sometimes, unfortunately, the toCell stays null
+             * This appears to be due to floating point errors when getting the two angles
+             * A wide margin of error is fixing this, but I eventually will need a more
+             * robust solution to tie connection and edge together
              */
         }
     }
