@@ -149,18 +149,31 @@ public class NodeDrawerScript : MonoBehaviour
                     tweenEdge1.GetComponent<EdgeScript>().fromNode = fromEdge.GetComponent<EdgeScript>().fromNode;
                     tweenEdge1.GetComponent<EdgeScript>().toNode = toEdge.GetComponent<EdgeScript>().toNode;
                     GameObject tweenEdge2 = Instantiate(edgePrefab, cell.transform);
-                    tweenEdge2.GetComponent<EdgeScript>().fromNode = fromEdge.GetComponent<EdgeScript>().toNode;
-                    tweenEdge2.GetComponent<EdgeScript>().toNode = toEdge.GetComponent<EdgeScript>().fromNode;
+                    tweenEdge2.GetComponent<EdgeScript>().toNode = fromEdge.GetComponent<EdgeScript>().toNode;
+                    tweenEdge2.GetComponent<EdgeScript>().fromNode = toEdge.GetComponent<EdgeScript>().fromNode;
                     cellScript.edges.Add(tweenEdge1);
                     cellScript.edges.Add(tweenEdge2);
 
+                    edgeList.Add(tweenEdge1);
+                    edgeList.Add(tweenEdge2);
+
                     // Need to add fromCell and toCell to tweenEdge1, and tweenEdge2
                     // Can probably do this with clockwise logic, finding the connection in between tween connections, since can only have 2-4 connections
+                    // Join tween edge to third cell
+                    //tweenEdge1.GetComponent<EdgeScript>().toCell = cellScript.connectedCells[2];
+                    if (cellScript.connectedCells.Count > 3)
+                    {
+                        //tweenEdge2.GetComponent<EdgeScript>().toCell = cellScript.connectedCells[3];
+                    }
+
+                    // Temporarily disable tween edges entirely
+                    tweenEdge1.GetComponent<EdgeScript>().accessible = false;
+                    tweenEdge2.GetComponent<EdgeScript>().accessible = false;
                 }
             }
         }
 
-        // Generate fill cell edges
+        // Adopt edges from tween to fill cells
         if (Input.GetKeyDown(KeyCode.Alpha6))
         {
             foreach (GameObject node in nodeList)
@@ -170,7 +183,7 @@ public class NodeDrawerScript : MonoBehaviour
                 GameObject cell = nodeScript.cell;
                 CellScript cellScript = cell.GetComponent<CellScript>();
 
-                // Adopt edges of adjacent star cells
+                // Adopt edges of adjacent tween cells
                 if (nodeScript.type == "fill")
                 {
                     foreach (GameObject connectedCell in cellScript.connectedCells)
@@ -187,6 +200,76 @@ public class NodeDrawerScript : MonoBehaviour
                     }
                 }
             }
+        }
+
+        // Create edge nodes
+        if (Input.GetKeyDown(KeyCode.Alpha7))
+        {
+            foreach (GameObject edge in edgeList)
+            {
+                EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
+                edgeScript.CreateNodes();
+            }
+        }
+
+        // Connect edge nodes
+        if (Input.GetKeyDown(KeyCode.Alpha8))
+        {
+            foreach (GameObject cell in cellList)
+            {
+                CellScript cellScript = cell.GetComponent<CellScript>();
+                foreach (GameObject edge in cellScript.edges)
+                {
+                    EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
+                    foreach (GameObject edge2 in cellScript.edges)
+                    {
+                        EdgeScript edgeScript2 = edge2.GetComponent<EdgeScript>();
+                        if (edge != edge2 && edgeScript.accessible == true && edgeScript2.accessible == true)
+                        {
+                            foreach (GameObject entranceNode in edgeScript.entranceNodes)
+                            {
+                                foreach (GameObject exitNode in edgeScript2.exitNodes)
+                                {
+                                    if (cellScript.type == "star")
+                                    {
+                                        entranceNode.GetComponent<NodeScript>().connectedNodes.Add(exitNode);
+                                    }
+                                    else if(cellScript.type == "tween")
+                                    {
+                                        exitNode.GetComponent<NodeScript>().connectedNodes.Add(entranceNode);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Create car
+        if (Input.GetKeyDown(KeyCode.Alpha9))
+        {
+            // Get potential nodes
+            List<GameObject> potentialNodes = new List<GameObject>();
+            foreach (GameObject edge in edgeList)
+            {
+                EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
+                if (edgeScript.accessible == true)
+                {
+                    foreach (GameObject node in edgeScript.entranceNodes)
+                    {
+                        potentialNodes.Add(node);
+                    }
+                }
+            }
+
+            // Choose node
+            GameObject chosenNode = potentialNodes[Random.Range(0, potentialNodes.Count - 1)];
+
+            // Spawn car
+            GameObject car = Instantiate(carPrefab);
+            car.GetComponent<CarScript>().targetNode = chosenNode;
+            car.transform.position = chosenNode.transform.position;
         }
     }
 
@@ -621,6 +704,8 @@ public class NodeDrawerScript : MonoBehaviour
             edgeScript.toNode = secondNode;
 
             originCellScript.edges.Add(edge);
+
+            edgeList.Add(edge);
         }
 
         // Connect edges to their connecting cells
@@ -685,8 +770,10 @@ public class NodeDrawerScript : MonoBehaviour
     public GameObject nodePrefab;
     public GameObject cellPrefab;
     public GameObject edgePrefab;
+    public GameObject carPrefab;
     public List<GameObject> nodeList;
     public List<GameObject> cellList;
+    public List<GameObject> edgeList;
     public GameObject selection;
     public GameObject cursor;
 }

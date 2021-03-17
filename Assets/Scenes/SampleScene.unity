@@ -597,6 +597,12 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 2553321170709485316, guid: b7486d081db538b46a1ff1ae7310ebc0,
         type: 3}
+    - target: {fileID: 2351523084474707598, guid: 01a2dbb6792165946a5dc4e65c78fc85,
+        type: 3}
+      propertyPath: carPrefab
+      value: 
+      objectReference: {fileID: 1257282903431945574, guid: 3077b669c458b9344a559d9a773f3c91,
+        type: 3}
     - target: {fileID: 6693442875898704927, guid: 01a2dbb6792165946a5dc4e65c78fc85,
         type: 3}
       propertyPath: m_Name

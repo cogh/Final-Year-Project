@@ -8,6 +8,8 @@ public class EdgeScript : MonoBehaviour
 
     public void CreateNodes()
     {
+        point1 = fromNode.transform.position;
+        point2 = toNode.transform.position;
         float laneWidth = (Vector3.Distance(point1, point2)) / (laneCount + 2);
         Vector3 edgeVector = (point2 - point1).normalized;
         for (int i = 0; i < laneCount; i++)
@@ -19,7 +21,7 @@ public class EdgeScript : MonoBehaviour
             Vector3 position = point1 + (edgeVector * (margin + laneDisplacement + sidewalkWidth));
 
             // Create node
-            GameObject newNode = Instantiate(nodePrefab, position, new Quaternion());
+            GameObject newNode = Instantiate(nodePrefab, position, new Quaternion(), gameObject.transform);
 
             // Add to relevant list
             if (i < laneCount / 2)
@@ -77,4 +79,5 @@ public class EdgeScript : MonoBehaviour
     public Color color;
     public Color selectedColor;
     public float gizmoSphereWidth;
+    public bool accessible = true;
 }
