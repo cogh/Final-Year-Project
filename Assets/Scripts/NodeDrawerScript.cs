@@ -15,12 +15,13 @@ class Connection
     public GameObject to;
 }
 
+
 public class NodeDrawerScript : MonoBehaviour
 {
     // Start is called before the first frame update
     void Start()
     {
-        connectState = "idle";
+        cursorState = "idle";
         selection = null;
         floorCollider = floor.GetComponent<Collider>();
         nodeList = new List<GameObject>();
@@ -29,9 +30,81 @@ public class NodeDrawerScript : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+
+        // New interface code
+        if (Input.GetMouseButtonDown(0))
+        {
+            // Get closest node
+            GameObject closestNode = GetClosestNode();
+            float distanceToClosestNode = 0.0f;
+            if (closestNode != null) { distanceToClosestNode = Vector3.Distance(cursor.transform.position, closestNode.transform.position); }
+
+            /*
+             * Must account for line snapping here
+             * Something like "if no snappable node, then find snappable line
+             * And then create a new node on that line (if it exists)
+             */
+
+            // Get draw from node
+            if (snapFrom && distanceToClosestNode < snapDistance && closestNode != null)
+            {
+                // Get closest
+                drawFromNode = closestNode;
+            }
+            else
+            {
+                // Create
+                drawFromNode = Instantiate(nodePrefab, cursor.transform.position, new Quaternion());
+                drawFromNode.GetComponent<NodeScript>().type = "star";
+                nodeList.Add(drawFromNode);
+            }
+
+            // Set state
+            cursorState = "active";
+        }
+        if (Input.GetMouseButtonUp(0))
+        {
+            // Get closest node
+            GameObject closestNode = GetClosestNode();
+            float distanceToClosestNode = 0.0f;
+            if (closestNode != null) { distanceToClosestNode = Vector3.Distance(cursor.transform.position, closestNode.transform.position); }
+
+            /*
+             * Must account for line snapping here
+             * Something like "if no snappable node, then find snappable line
+             * And then create a new node on that line (if it exists)
+             */
+
+            // Get draw to node
+            if (snapTo && distanceToClosestNode < snapDistance && closestNode != null)
+            {
+                drawToNode = closestNode; // that isnt draw from node
+            }
+            else
+            {
+                drawToNode = Instantiate(nodePrefab, cursor.transform.position, new Quaternion());
+                drawToNode.GetComponent<NodeScript>().type = "star";
+                nodeList.Add(drawToNode);
+            }
+
+            /*
+             * Connection code must be expanded here
+             * Use LineLineIntersection() to check all line intersections (eliminate duplicate edges)
+             * For every intersection, you must create a new node on the intersecting point, 
+             * and then attach the nodes at either side of the intersecting edge
+             */
+
+            // Connect
+            drawFromNode.GetComponent<NodeScript>().connectedNodes.Add(drawToNode);
+            drawToNode.GetComponent<NodeScript>().connectedNodes.Add(drawFromNode);
+
+            // Reset state
+            cursorState = "idle";
+        }
+
         UpdateCursor();
-        CreateNodeFromCursor();
-        ConnectNodes();
+        //CreateNodeFromCursor();
+        //ConnectNodes();
 
         // Create tween nodes
         if (Input.GetKeyDown(KeyCode.Alpha1))
@@ -298,13 +371,13 @@ public class NodeDrawerScript : MonoBehaviour
 
     void ConnectNodes()
     {
-        switch (connectState)
+        switch (cursorState)
         {
             case "idle":
                 if (Input.GetMouseButtonDown(1))
                 {
                     selection = GetClosestNode();
-                    if (selection != null) { connectState = "active"; }
+                    if (selection != null) { cursorState = "active"; }
                 }
                 break;
             case "active":
@@ -317,7 +390,7 @@ public class NodeDrawerScript : MonoBehaviour
                         nearestNode.GetComponent<NodeScript>().connectedNodes.Add(selection);
                     }
                     selection = null;
-                    connectState = "idle";
+                    cursorState = "idle";
                 }
                 break;
         }
@@ -758,15 +831,61 @@ public class NodeDrawerScript : MonoBehaviour
         return closestNode;
     }
 
+    // From https://wiki.unity3d.com/index.php/3d_Math_functions
+    public static bool LineLineIntersection(out Vector3 intersection, Vector3 linePoint1,
+        Vector3 lineVec1, Vector3 linePoint2, Vector3 lineVec2)
+    {
+
+        Vector3 lineVec3 = linePoint2 - linePoint1;
+        Vector3 crossVec1and2 = Vector3.Cross(lineVec1, lineVec2);
+        Vector3 crossVec3and2 = Vector3.Cross(lineVec3, lineVec2);
+
+        float planarFactor = Vector3.Dot(lineVec3, crossVec1and2);
+
+        //is coplanar, and not parallel
+        if (Mathf.Approximately(planarFactor, 0f) &&
+            !Mathf.Approximately(crossVec1and2.sqrMagnitude, 0f))
+        {
+            float s = Vector3.Dot(crossVec3and2, crossVec1and2) / crossVec1and2.sqrMagnitude;
+            intersection = linePoint1 + (lineVec1 * s);
+            return true;
+        }
+        else
+        {
+            intersection = Vector3.zero;
+            return false;
+        }
+    }
+
+    // From https://forum.unity.com/threads/math-problem.8114/#post-59715
+    Vector3 ClosestPointOnLine(Vector3 vA, Vector3 vB, Vector3 vPoint)
+    {
+        var vVector1 = vPoint - vA;
+        var vVector2 = (vB - vA).normalized;
+
+        var d = Vector3.Distance(vA, vB);
+        var t = Vector3.Dot(vVector2, vVector1);
+
+        if (t <= 0)
+            return vA;
+
+        if (t >= d)
+            return vB;
+
+        var vVector3 = vVector2 * t;
+
+        var vClosestPoint = vA + vVector3;
+
+        return vClosestPoint;
+    }
+
     private void OnDrawGizmos()
     {
         Gizmos.DrawWireSphere(cursor.transform.position, 1.0f);
         if (selection != null) { Gizmos.DrawLine(cursor.transform.position, selection.transform.position); }
     }
 
-    public string connectState;
-    public GameObject floor;
-    Collider floorCollider;
+    // Generation
     public GameObject nodePrefab;
     public GameObject cellPrefab;
     public GameObject edgePrefab;
@@ -774,6 +893,16 @@ public class NodeDrawerScript : MonoBehaviour
     public List<GameObject> nodeList;
     public List<GameObject> cellList;
     public List<GameObject> edgeList;
+
+    // Interface
+    GameObject drawFromNode;
+    GameObject drawToNode;
     public GameObject selection;
     public GameObject cursor;
+    public string cursorState;
+    public GameObject floor;
+    Collider floorCollider;
+    bool snapFrom = true;
+    bool snapTo = true;
+    public float snapDistance;
 }
