@@ -34,22 +34,10 @@ public class NodeDrawerScript : MonoBehaviour
         // New interface code
         if (Input.GetMouseButtonDown(0))
         {
-            // Get closest node
-            GameObject closestNode = GetClosestNode();
-            float distanceToClosestNode = 0.0f;
-            if (closestNode != null) { distanceToClosestNode = Vector3.Distance(cursor.transform.position, closestNode.transform.position); }
-
-            /*
-             * Must account for line snapping here
-             * Something like "if no snappable node, then find snappable line
-             * And then create a new node on that line (if it exists)
-             */
-
-            // Get draw from node
-            if (snapFrom && distanceToClosestNode < snapDistance && closestNode != null)
+            // Snap from
+            if (snapFrom)
             {
-                // Get closest
-                drawFromNode = closestNode;
+                drawFromNode = GetOrCreateSnappableNode(cursor.transform.position);
             }
             else
             {
@@ -64,21 +52,10 @@ public class NodeDrawerScript : MonoBehaviour
         }
         if (Input.GetMouseButtonUp(0))
         {
-            // Get closest node
-            GameObject closestNode = GetClosestNode();
-            float distanceToClosestNode = 0.0f;
-            if (closestNode != null) { distanceToClosestNode = Vector3.Distance(cursor.transform.position, closestNode.transform.position); }
-
-            /*
-             * Must account for line snapping here
-             * Something like "if no snappable node, then find snappable line
-             * And then create a new node on that line (if it exists)
-             */
-
             // Get draw to node
-            if (snapTo && distanceToClosestNode < snapDistance && closestNode != null)
+            if (snapTo)
             {
-                drawToNode = closestNode; // that isnt draw from node
+                drawToNode = GetOrCreateSnappableNode(cursor.transform.position); // that isnt draw from node
             }
             else
             {
@@ -87,16 +64,41 @@ public class NodeDrawerScript : MonoBehaviour
                 nodeList.Add(drawToNode);
             }
 
-            /*
-             * Connection code must be expanded here
-             * Use LineLineIntersection() to check all line intersections (eliminate duplicate edges)
-             * For every intersection, you must create a new node on the intersecting point, 
-             * and then attach the nodes at either side of the intersecting edge
-             */
+            // Create intersecting nodes
+            List<GameObject> intersectingNodes = new List<GameObject>();
+            List<Connection> connections = GetConnections();
+            Connection mainConnection = new Connection(drawFromNode, drawToNode);
+            foreach (Connection connection in connections)
+            {
+                // Points
+                Vector3 intersectionPoint1 = Vector3.zero;
+                Vector3 intersectionPoint2 = Vector3.zero;
+                Vector3 fromPoint1 = mainConnection.from.transform.position;
+                Vector3 toPoint1 = mainConnection.to.transform.position;
+                Vector3 fromPoint2 = connection.from.transform.position;
+                Vector3 toPoint2 = connection.to.transform.position;
 
-            // Connect
-            drawFromNode.GetComponent<NodeScript>().connectedNodes.Add(drawToNode);
-            drawToNode.GetComponent<NodeScript>().connectedNodes.Add(drawFromNode);
+                // Subdivide if intersecting
+                if (ClosestPointsOnTwoLines(out intersectionPoint1, out intersectionPoint2, fromPoint1, toPoint1, fromPoint2, toPoint2)) // Lines are infinite?
+                {
+                    if (Vector3.Distance(intersectionPoint1, intersectionPoint2) < 0.1f) // rephrase this as closestPoints, not intersection, and define intersection by epsilon
+                    {
+                        GameObject subdividedNode = SubdivideConnection(connection, intersectionPoint1);
+                        intersectingNodes.Add(subdividedNode);
+                    }
+                }
+            }
+
+            // Connect all nodes (including from/to and all intersecting)
+            intersectingNodes.Insert(0, drawFromNode);
+            intersectingNodes.Add(drawToNode);
+            for (int i = 1; i < intersectingNodes.Count; i++)
+            {
+                GameObject fromNode = intersectingNodes[i - 1];
+                GameObject toNode = intersectingNodes[i];
+                fromNode.GetComponent<NodeScript>().connectedNodes.Add(toNode);
+                toNode.GetComponent<NodeScript>().connectedNodes.Add(fromNode);
+            }
 
             // Reset state
             cursorState = "idle";
@@ -814,6 +816,26 @@ public class NodeDrawerScript : MonoBehaviour
         }
     }
 
+    List<Connection> GetConnections()
+    {
+        List<Connection> nodeConnections = new List<Connection>();
+        foreach (GameObject node in nodeList)
+        {
+            NodeScript nodeScript = node.GetComponent<NodeScript>();
+            foreach (GameObject connectedNode in nodeScript.connectedNodes)
+            {
+                // Remove connection from connectedNode to avoid duplicates
+                NodeScript connectedNodeScript = connectedNode.GetComponent<NodeScript>();
+                connectedNodeScript.connectedNodes.Remove(node);
+
+                // Create connection object
+                Connection nodeConnection = new Connection(node, connectedNode);
+                nodeConnections.Add(nodeConnection);
+            }
+        }
+        return nodeConnections;
+    }
+
     GameObject GetClosestNode()
     {
         GameObject closestNode = null;
@@ -831,28 +853,60 @@ public class NodeDrawerScript : MonoBehaviour
         return closestNode;
     }
 
-    // From https://wiki.unity3d.com/index.php/3d_Math_functions
-    public static bool LineLineIntersection(out Vector3 intersection, Vector3 linePoint1,
-        Vector3 lineVec1, Vector3 linePoint2, Vector3 lineVec2)
+    // From https://wiki.unity3d.com/index.php/3d_Math_functions (I have edited it to be non-infinite, ie. uses line segments, not lines)
+    public static bool ClosestPointsOnTwoLines(out Vector3 closestPointLine1, out Vector3 closestPointLine2, Vector3 line1Start, Vector3 line1End, Vector3 line2Start, Vector3 line2End)
     {
+        Vector3 lineVec1 = line1End - line1Start;
+        Vector3 lineVec2 = line2End - line2Start;
+        float line1Length = lineVec1.magnitude;
+        float line2Length = lineVec2.magnitude;
 
-        Vector3 lineVec3 = linePoint2 - linePoint1;
-        Vector3 crossVec1and2 = Vector3.Cross(lineVec1, lineVec2);
-        Vector3 crossVec3and2 = Vector3.Cross(lineVec3, lineVec2);
+        closestPointLine1 = Vector3.zero;
+        closestPointLine2 = Vector3.zero;
 
-        float planarFactor = Vector3.Dot(lineVec3, crossVec1and2);
+        float a = Vector3.Dot(lineVec1, lineVec1);
+        float b = Vector3.Dot(lineVec1, lineVec2);
+        float e = Vector3.Dot(lineVec2, lineVec2);
 
-        //is coplanar, and not parallel
-        if (Mathf.Approximately(planarFactor, 0f) &&
-            !Mathf.Approximately(crossVec1and2.sqrMagnitude, 0f))
+        float d = a * e - b * b;
+
+        //lines are not parallel
+        if (d != 0.0f)
         {
-            float s = Vector3.Dot(crossVec3and2, crossVec1and2) / crossVec1and2.sqrMagnitude;
-            intersection = linePoint1 + (lineVec1 * s);
-            return true;
+
+            Vector3 r = line1Start - line2Start;
+            float c = Vector3.Dot(lineVec1, r);
+            float f = Vector3.Dot(lineVec2, r);
+
+            float s = (b * f - c * e) / d;
+            float t = (a * f - c * b) / d;
+
+            closestPointLine1 = line1Start + lineVec1 * s;
+            closestPointLine2 = line2Start + lineVec2 * t;
+
+            Vector3 closestVector1 = closestPointLine1 - line1Start;
+            Vector3 closestVector2 = closestPointLine2 - line2Start;
+
+            // Some sort of Dot() and length calculation to work out if in the right place?
+            // Should not be behind
+            // Should not be more than the distance of the vector
+            bool closestPoint1NotBehind = (Vector3.Dot(lineVec1, closestVector1) > 0.0f);
+            bool closestPoint2NotBehind = (Vector3.Dot(lineVec2, closestVector2) > 0.0f);
+            bool closestPoint1NotTooFar = (closestVector1.magnitude < line1Length);
+            bool closestPoint2NotTooFar = (closestVector2.magnitude < line1Length);
+
+            if (closestPoint1NotBehind && closestPoint2NotBehind &&
+                closestPoint1NotTooFar && closestPoint2NotTooFar)
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
         }
         else
         {
-            intersection = Vector3.zero;
             return false;
         }
     }
@@ -877,6 +931,82 @@ public class NodeDrawerScript : MonoBehaviour
         var vClosestPoint = vA + vVector3;
 
         return vClosestPoint;
+    }
+
+    GameObject SubdivideConnection(Connection connection, Vector3 point)
+    {
+        // Create node
+        GameObject node = Instantiate(nodePrefab, point, Quaternion.identity);
+        node.GetComponent<NodeScript>().type = "star";
+        nodeList.Add(node);
+
+        // Break old connections
+        connection.from.GetComponent<NodeScript>().connectedNodes.Remove(connection.to);
+        connection.to.GetComponent<NodeScript>().connectedNodes.Remove(connection.from);
+
+        // Form new connections
+        connection.from.GetComponent<NodeScript>().connectedNodes.Add(node);
+        connection.to.GetComponent<NodeScript>().connectedNodes.Add(node);
+        node.GetComponent<NodeScript>().connectedNodes.Add(connection.from);
+        node.GetComponent<NodeScript>().connectedNodes.Add(connection.to);
+
+        // Return
+        return node;
+    }
+
+    GameObject GetOrCreateSnappableNode(Vector3 position) // Should probably rephrase this as just "GetSnappable", and return null if none (maybe GetSnappableLine, and GetSnappableNode)
+    {
+        Connection closestLine = null;
+        GameObject closestNode = null;
+        float distanceToClosestNode = 0.0f;
+        float distanceToClosestLine = 0.0f;
+        Vector3 closestLinePoint = new Vector3(0.0f, 0.0f, 0.0f);
+
+        // Get closest node
+        closestNode = GetClosestNode();
+        distanceToClosestNode = 0.0f;
+        if (closestNode != null) { distanceToClosestNode = Vector3.Distance(position, closestNode.transform.position); }
+
+        // Get closest line + line point
+        List<Connection> nodeConnections = GetConnections();
+        if (nodeConnections.Count > 0)
+        {
+            // Get closest
+            closestLine = nodeConnections[0];
+            closestLinePoint = ClosestPointOnLine(closestLine.from.transform.position, closestLine.to.transform.position, position);
+            foreach (Connection line in nodeConnections)
+            {
+                Vector3 linePoint = ClosestPointOnLine(line.from.transform.position, line.to.transform.position, position);
+                if (Vector3.Distance(linePoint, position) < Vector3.Distance(closestLinePoint, position))
+                {
+                    closestLine = line;
+                    closestLinePoint = linePoint;
+                }
+            }
+            distanceToClosestLine = Vector3.Distance(position, closestLinePoint);
+        }
+
+        // Check if node, line, or neither
+        if (closestNode != null && distanceToClosestNode < snapDistance) // Use close node to snap
+        {
+            return closestNode;
+        }
+        else if (closestLine != null && distanceToClosestLine < snapDistance) // Use close line to snap
+        {
+            // Subdivide line to create new node
+            GameObject node = SubdivideConnection(closestLine, closestLinePoint);
+
+            // Set as draw from node
+            return node;
+        }
+        else // Create a new node
+        {
+            // Create
+            GameObject node = Instantiate(nodePrefab, position, new Quaternion());
+            node.GetComponent<NodeScript>().type = "star";
+            nodeList.Add(node);
+            return node;
+        }
     }
 
     private void OnDrawGizmos()
