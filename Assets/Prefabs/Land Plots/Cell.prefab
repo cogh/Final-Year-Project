@@ -10,6 +10,8 @@ GameObject:
   m_Component:
   - component: {fileID: 8368250876653160250}
   - component: {fileID: 3785933631703432461}
+  - component: {fileID: 3501899152116582347}
+  - component: {fileID: -1432755291505280013}
   m_Layer: 0
   m_Name: Cell
   m_TagString: Untagged
@@ -43,6 +45,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 4bca7ea8ea770cf46bfc2a55085c35f1, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  accessible: 0
+  cornerNodes: []
+  edges: []
+  connectedCells: []
   positionColour: {r: 0.07457018, g: 0, b: 1, a: 1}
   positionSelectedColour: {r: 0, g: 0.97935414, b: 1, a: 1}
   connectionColour: {r: 0, g: 0.5188679, b: 0.09626554, a: 1}
@@ -50,3 +56,55 @@ MonoBehaviour:
   positionDisplayWidth: 0.1
   edgePrefab: {fileID: 2553321170709485316, guid: b7486d081db538b46a1ff1ae7310ebc0,
     type: 3}
+  nodePrefab: {fileID: 0}
+  parentNode: {fileID: 0}
+  type: 
+--- !u!33 &3501899152116582347
+MeshFilter:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7125515334643550007}
+  m_Mesh: {fileID: 0}
+--- !u!23 &-1432755291505280013
+MeshRenderer:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 7125515334643550007}
+  m_Enabled: 1
+  m_CastShadows: 1
+  m_ReceiveShadows: 1
+  m_DynamicOccludee: 1
+  m_MotionVectors: 1
+  m_LightProbeUsage: 1
+  m_ReflectionProbeUsage: 1
+  m_RayTracingMode: 2
+  m_RayTraceProcedural: 0
+  m_RenderingLayerMask: 1
+  m_RendererPriority: 0
+  m_Materials:
+  - {fileID: 0}
+  m_StaticBatchInfo:
+    firstSubMesh: 0
+    subMeshCount: 0
+  m_StaticBatchRoot: {fileID: 0}
+  m_ProbeAnchor: {fileID: 0}
+  m_LightProbeVolumeOverride: {fileID: 0}
+  m_ScaleInLightmap: 1
+  m_ReceiveGI: 1
+  m_PreserveUVs: 0
+  m_IgnoreNormalsForChartDetection: 0
+  m_ImportantGI: 0
+  m_StitchLightmapSeams: 1
+  m_SelectedEditorRenderState: 3
+  m_MinimumChartSize: 4
+  m_AutoUVMaxDistance: 0.5
+  m_AutoUVMaxAngle: 89
+  m_LightmapParameters: {fileID: 0}
+  m_SortingLayerID: 0
+  m_SortingLayer: 0
+  m_SortingOrder: 0
+  m_AdditionalVertexStreams: {fileID: 0}

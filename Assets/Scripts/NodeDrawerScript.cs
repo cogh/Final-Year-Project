@@ -4,6 +4,22 @@ using UnityEditor;
 using UnityEditor.MemoryProfiler;
 using UnityEngine;
 
+
+class Triangle
+{
+    // Construct
+    public Triangle(Vector3 v1, Vector3 v2, Vector3 v3)
+    {
+        this.v1 = v1;
+        this.v2 = v2;
+        this.v3 = v3;
+    }
+
+    //Corners
+    public Vector3 v1;
+    public Vector3 v2;
+    public Vector3 v3;
+}
 class Connection
 {
     public Connection(GameObject argFrom, GameObject argTo)
@@ -37,7 +53,17 @@ public class NodeDrawerScript : MonoBehaviour
             // Snap from
             if (snapFrom)
             {
+                if (drawFromNode != null)
+                {
+                    NodeScript script = drawFromNode.GetComponent<NodeScript>();
+                    Debug.Log("About to get draw from node. Count: " + script.connectedNodes.Count);
+                }
                 drawFromNode = GetOrCreateSnappableNode(cursor.transform.position);
+                if (drawFromNode != null)
+                {
+                    NodeScript script = drawFromNode.GetComponent<NodeScript>();
+                    Debug.Log("Got draw from node. Count: " + script.connectedNodes.Count);
+                }
             }
             else
             {
@@ -55,7 +81,17 @@ public class NodeDrawerScript : MonoBehaviour
             // Get draw to node
             if (snapTo)
             {
+                if (drawFromNode != null)
+                {
+                    NodeScript script = drawFromNode.GetComponent<NodeScript>();
+                    Debug.Log("About to get draw to. Count: " + script.connectedNodes.Count);
+                }
                 drawToNode = GetOrCreateSnappableNode(cursor.transform.position); // that isnt draw from node
+                if (drawFromNode != null)
+                {
+                    NodeScript script = drawFromNode.GetComponent<NodeScript>();
+                    Debug.Log("Got draw to node. Count: " + script.connectedNodes.Count);
+                }
             }
             else
             {
@@ -66,8 +102,13 @@ public class NodeDrawerScript : MonoBehaviour
 
             // Create intersecting nodes
             List<GameObject> intersectingNodes = new List<GameObject>();
-            List<Connection> connections = GetConnections();
+            List<Connection> connections = GetConnections(); // Problem is here. Has doubling
             Connection mainConnection = new Connection(drawFromNode, drawToNode);
+            if (drawFromNode != null)
+            {
+                NodeScript script = drawFromNode.GetComponent<NodeScript>();
+                Debug.Log("About to do intersections. Count: " + script.connectedNodes.Count);
+            }
             foreach (Connection connection in connections)
             {
                 // Points
@@ -90,6 +131,11 @@ public class NodeDrawerScript : MonoBehaviour
             }
 
             // Connect all nodes (including from/to and all intersecting)
+            if (drawFromNode != null)
+            {
+                NodeScript script = drawFromNode.GetComponent<NodeScript>();
+                Debug.Log("About to insert into final list. Count: " + script.connectedNodes.Count);
+            }
             intersectingNodes.Insert(0, drawFromNode);
             intersectingNodes.Add(drawToNode);
             for (int i = 1; i < intersectingNodes.Count; i++)
@@ -215,12 +261,6 @@ public class NodeDrawerScript : MonoBehaviour
                     GameObject fromEdge = cellScript.edges[0];
                     GameObject toEdge = cellScript.edges[1];
                     GameObject tweenEdge1 = Instantiate(edgePrefab, cell.transform);
-                    if (fromEdge == null)
-                    {
-                        //
-                        int here = 0;
-                        cell.name = "yoyoyo";
-                    }
                     tweenEdge1.GetComponent<EdgeScript>().fromNode = fromEdge.GetComponent<EdgeScript>().fromNode;
                     tweenEdge1.GetComponent<EdgeScript>().toNode = toEdge.GetComponent<EdgeScript>().toNode;
                     GameObject tweenEdge2 = Instantiate(edgePrefab, cell.transform);
@@ -231,6 +271,12 @@ public class NodeDrawerScript : MonoBehaviour
 
                     edgeList.Add(tweenEdge1);
                     edgeList.Add(tweenEdge2);
+
+                    // Get corners for mesh generation
+                    cellScript.cornerNodes.Add(tweenEdge1.GetComponent<EdgeScript>().fromNode);
+                    cellScript.cornerNodes.Add(tweenEdge1.GetComponent<EdgeScript>().toNode);
+                    cellScript.cornerNodes.Add(tweenEdge2.GetComponent<EdgeScript>().fromNode);
+                    cellScript.cornerNodes.Add(tweenEdge2.GetComponent<EdgeScript>().toNode);
 
                     // Need to add fromCell and toCell to tweenEdge1, and tweenEdge2
                     // Can probably do this with clockwise logic, finding the connection in between tween connections, since can only have 2-4 connections
@@ -346,6 +392,59 @@ public class NodeDrawerScript : MonoBehaviour
             car.GetComponent<CarScript>().targetNode = chosenNode;
             car.transform.position = chosenNode.transform.position;
         }
+
+        // Generate star cell edges
+        if (Input.GetKeyDown(KeyCode.Alpha0))
+        {
+            foreach (GameObject cell in cellList)
+            {
+                CellScript cellScript = cell.GetComponent<CellScript>();
+                List<Vector3> cornerList = new List<Vector3>();
+                foreach (GameObject cornerNode in cellScript.cornerNodes)
+                {
+                    cornerList.Add(cornerNode.transform.position - cell.transform.position); // from cell's transform's perspective
+                }
+                List<int> triangleList = TriangulateConvexPolygonInts(cornerList);
+                MeshFilter cellMeshFilter = cell.GetComponent<MeshFilter>();
+                cellMeshFilter.mesh = new Mesh();
+                cellMeshFilter.mesh.vertices = cornerList.ToArray();
+                cellMeshFilter.mesh.triangles = triangleList.ToArray();
+            }
+        }
+    }
+
+    List<Triangle> TriangulateConvexPolygon(List<Vector3> convexHullpoints)
+    {
+        List<Triangle> triangles = new List<Triangle>();
+
+        for (int i = 2; i < convexHullpoints.Count; i++)
+        {
+            Vector3 a = convexHullpoints[0];
+            Vector3 b = convexHullpoints[i - 1];
+            Vector3 c = convexHullpoints[i];
+
+            triangles.Add(new Triangle(a, b, c));
+        }
+
+        return triangles;
+    }
+
+    List<int> TriangulateConvexPolygonInts(List<Vector3> convexHullpoints)
+    {
+        List<int> triangleInts = new List<int>();
+
+        for (int i = 2; i < convexHullpoints.Count; i++)
+        {
+            Vector3 a = convexHullpoints[0];
+            Vector3 b = convexHullpoints[i - 1];
+            Vector3 c = convexHullpoints[i];
+
+            triangleInts.Add(0);
+            triangleInts.Add(i-1);
+            triangleInts.Add(i);
+        }
+
+        return triangleInts;
     }
 
     void UpdateCursor()
@@ -745,6 +844,7 @@ public class NodeDrawerScript : MonoBehaviour
             node.GetComponent<NodeScript>().positionColour = Color.green;
             cellCornerNodes.Add(node);
         }
+        originCellScript.cornerNodes = cellCornerNodes;
 
         // Connect corner nodes
         for (int i = 0; i < cellCornerNodes.Count; i++)
@@ -817,6 +917,35 @@ public class NodeDrawerScript : MonoBehaviour
     }
 
     List<Connection> GetConnections()
+    {
+        List<Connection> nodeConnections = new List<Connection>();
+        foreach (GameObject node in nodeList)
+        {
+            NodeScript nodeScript = node.GetComponent<NodeScript>();
+            foreach (GameObject connectedNode in nodeScript.connectedNodes)
+            {
+                // Look for duplicate connection
+                bool found = false;
+                foreach (Connection connection in nodeConnections)
+                {
+                    if (connection.from == connectedNode && connection.to == node)
+                    {
+                        found = true;
+                    }
+                }    
+
+                // Create connection object
+                if (!found)
+                {
+                    Connection nodeConnection = new Connection(node, connectedNode);
+                    nodeConnections.Add(nodeConnection);
+                }
+            }
+        }
+        return nodeConnections;
+    }
+
+    List<Connection> GetConnections2() // Why did I have this variant? Is it still needed? Might need to replace something with this one
     {
         List<Connection> nodeConnections = new List<Connection>();
         foreach (GameObject node in nodeList)
@@ -964,11 +1093,26 @@ public class NodeDrawerScript : MonoBehaviour
 
         // Get closest node
         closestNode = GetClosestNode();
+        if (closestNode != null)
+        {
+            NodeScript script = closestNode.GetComponent<NodeScript>();
+            Debug.Log("Got closest node. Count: " + script.connectedNodes.Count);
+        }
         distanceToClosestNode = 0.0f;
         if (closestNode != null) { distanceToClosestNode = Vector3.Distance(position, closestNode.transform.position); }
 
         // Get closest line + line point
+        if (closestNode != null)
+        {
+            NodeScript script = closestNode.GetComponent<NodeScript>();
+            Debug.Log("About to get connections. Count: " + script.connectedNodes.Count);
+        }
         List<Connection> nodeConnections = GetConnections();
+        if (closestNode != null)
+        {
+            NodeScript script = closestNode.GetComponent<NodeScript>();
+            Debug.Log("Got connections. Count: " + script.connectedNodes.Count);
+        }
         if (nodeConnections.Count > 0)
         {
             // Get closest
@@ -989,6 +1133,11 @@ public class NodeDrawerScript : MonoBehaviour
         // Check if node, line, or neither
         if (closestNode != null && distanceToClosestNode < snapDistance) // Use close node to snap
         {
+            if (closestNode != null)
+            {
+                NodeScript script = closestNode.GetComponent<NodeScript>();
+                Debug.Log("About to return closest node. Count: " + script.connectedNodes.Count);
+            }
             return closestNode;
         }
         else if (closestLine != null && distanceToClosestLine < snapDistance) // Use close line to snap
