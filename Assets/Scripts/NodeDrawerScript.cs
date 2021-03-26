@@ -31,6 +31,29 @@ class Connection
     public GameObject to;
 }
 
+class GameObjectAxisAngleComparer : IComparer<GameObject>
+{
+    public GameObjectAxisAngleComparer(Vector3 argOriginPoint)
+    {
+        originPoint = argOriginPoint;
+    }
+    public int Compare(GameObject gameObject1, GameObject gameObject2)
+    {
+        Vector3 vector1 = (originPoint - gameObject1.transform.position).normalized;
+        Vector3 vector2 = (originPoint - gameObject2.transform.position).normalized;
+        float angle1 = Vector3.SignedAngle(Vector3.forward, vector1, Vector3.up);
+        float angle2 = Vector3.SignedAngle(Vector3.forward, vector2, Vector3.up);
+
+        // Wrap negatives
+        if (angle1 < 0) { angle1 += 360; }
+        if (angle2 < 0) { angle2 += 360; }
+
+        return angle1.CompareTo(angle2);
+    }
+
+    public Vector3 originPoint;
+}
+
 
 public class NodeDrawerScript : MonoBehaviour
 {
@@ -753,167 +776,126 @@ public class NodeDrawerScript : MonoBehaviour
         // Get connected nodes
         List<GameObject> connectedCells = originCellScript.connectedCells;
 
-        // Create connection midpoints
-        List<Vector3> connectionPoints = new List<Vector3>();
+        // Create edges at connection midpoints
+        List<GameObject> connectionEdges = new List<GameObject>();
         foreach (GameObject connectedCell in connectedCells)
         {
+            // Get position
             Vector3 connectionPoint = connectedCell.transform.position;
             Vector3 connectionVector = (originPoint - connectionPoint).normalized;
-            connectionPoints.Add(connectionPoint);
+            Vector3 connectionMidPoint = originPoint - (connectionVector * radius); // was -
+            
+            // Create edge
+            GameObject connectionEdge = Instantiate(edgePrefab, connectionMidPoint, Quaternion.identity, originCell.transform);
+            connectionEdge.GetComponent<EdgeScript>().fromCell = originCell;
+            connectionEdge.GetComponent<EdgeScript>().toCell = connectedCell;
+            connectionEdges.Add(connectionEdge);
         }
 
-        // Create connection vectors
-        List<Vector3> connectionVectors = new List<Vector3>();
-        foreach (Vector3 midPoint in connectionPoints)
+        // Sort edges by angle
+        connectionEdges.Sort(new GameObjectAxisAngleComparer(originPoint));
+
+        // Create in-between edges
+        for (int i = 0; i < connectionEdges.Count; i++)
         {
-            Vector3 connectionVector = (originPoint - midPoint).normalized;
-            connectionVectors.Add(connectionVector);
-        }
+            // Get edges
+            GameObject edge1 = connectionEdges[i];
+            GameObject edge2;
+            if (i != connectionEdges.Count-1) { edge2 = connectionEdges[i + 1]; }
+            else 
+            { 
+                edge2 = connectionEdges[0]; // also need to increment angle by 360
+            }
 
-        // Create connection angles
-        List<float> connectionAngles = new List<float>();
-        foreach (Vector3 connectionVector in connectionVectors)
-        {
-            // Angle between
-            float angle = Vector3.SignedAngle(Vector3.forward, connectionVector, Vector3.up);        // WHAT IF I DO THIS ALL FROM THE PERSPECTIVE OF THE FIRST POINT? (ANGLE 0)
+            // Get angles
+            Vector3 vector1 = (originPoint - edge1.transform.position).normalized;
+            Vector3 vector2 = (originPoint - edge2.transform.position).normalized;
+            float angle1 = Vector3.SignedAngle(Vector3.forward, vector1, Vector3.up); // maybe always add 180
+            float angle2 = Vector3.SignedAngle(Vector3.forward, vector2, Vector3.up);
+            if (angle1 < 0) { angle1 += 360; }
+            if (angle2 < 0) { angle2 += 360; }
+            if (i == connectionEdges.Count - 1) // For looping, add 360 degrees
+            {
+                angle2 += 360.0f;
+            }
 
-            // Loop angles to 360 clockwise format
-            if (angle < 0) { angle = 360 + angle; }
-
-            // Add to list
-            connectionAngles.Add(angle);
-        }
-
-        // Sort connection angles
-        connectionAngles.Sort();
-
-        // Create in-between angles
-        for (int i = 0; i < connectionAngles.Count; i++)
-        {
-            float angle1 = connectionAngles[i];
-            float angle2;
-            if (i != connectionAngles.Count-1) { angle2 = connectionAngles[i + 1]; }
-            else { angle2 = connectionAngles[0] + 360.0f; }
-           
+            // Difference
             float angleDifference = angle2 - angle1;
 
-            float inBetweenAngleCount = Mathf.Round(angleDifference / 90);
-            float inBetweenAngleDistance = angleDifference / inBetweenAngleCount;
+            // Count in betweens
+            int inBetweenAngleCount = (int)Mathf.Round(angleDifference / 90)-1;
+            float inBetweenAngleDistance = angleDifference / (inBetweenAngleCount+1);
 
-            for (int j = 0; j < inBetweenAngleCount-1; j++)
+            // Create in betweens
+            for (int j = 0; j < inBetweenAngleCount; j++)
             {
+                // Create edge
+                GameObject edgeToInsert = Instantiate(edgePrefab, originCell.transform);
+
+                // Get position
                 float inBetweenAngle = angle1 + (inBetweenAngleDistance * (j+1));
-                connectionAngles.Insert(i + 1 + j, inBetweenAngle);
+                Quaternion inBetweenQuaternion = Quaternion.AngleAxis(inBetweenAngle, Vector3.up); // needs to be changed back to -+?
+                Vector3 inBetweenVector = inBetweenQuaternion * Vector3.forward;
+                Vector3 inBetweenPosition = originPoint - (inBetweenVector * radius); // why - tho
+
+                // Set angle
+                edgeToInsert.transform.position = inBetweenPosition;
+                connectionEdges.Insert(i + j + 1, edgeToInsert);
             }
+            if (i > 1000) { break; }
+            i += inBetweenAngleCount;
         }
 
-        // Create lerped angles
-        List<float> lerpedAngles = new List<float>();
-        for (int i = 0; i < connectionAngles.Count; i++)
-        {
-            float angle1 = connectionAngles[i];
-            float angle2;
-            if (i != connectionAngles.Count - 1) { angle2 = connectionAngles[i + 1]; }
-            else { angle2 = connectionAngles[0] + 360.0f; }
+        // Re-sort edges (shouldn't need to do this actually)
+        connectionEdges.Sort(new GameObjectAxisAngleComparer(originPoint));
 
-            lerpedAngles.Add(Mathf.Lerp(angle1,angle2,0.5f));
-        }
-
-        // Create new vectors
-        List<Vector3> newVectors = new List<Vector3>();
-        foreach (float angle in lerpedAngles)
+        // Create corner nodes (can combine this with last function later
+        for (int i = 0; i < connectionEdges.Count; i++)
         {
-            Vector3 newVector = Quaternion.AngleAxis(angle, Vector3.up) * Vector3.forward;
-            newVectors.Add(newVector);
-        }
-
-        // Create connection midpoints
-        List<Vector3> connectionMidPoints = new List<Vector3>();
-        foreach (Vector3 vector in newVectors)
-        {
-            Vector3 midPoint = originPoint - (vector * radius);
-            connectionMidPoints.Add(midPoint);
-        }
-
-        // Create corner nodes
-        List<GameObject> cellCornerNodes = new List<GameObject>();
-        foreach (Vector3 lerpedMidPoint in connectionMidPoints)
-        {
-            // Debug
-            GameObject node = Instantiate(nodePrefab, lerpedMidPoint, new Quaternion(), originCell.transform);
-            node.GetComponent<NodeScript>().positionColour = Color.green;
-            cellCornerNodes.Add(node);
-        }
-        originCellScript.cornerNodes = cellCornerNodes;
-
-        // Connect corner nodes
-        for (int i = 0; i < cellCornerNodes.Count; i++)
-        {
-            //GameObject cellCornerNode1, cellCornerNode2;
-            //cellCornerNode1 = cellCornerNodes[i];
-            //if (i < cellCornerNodes.Count - 1) { cellCornerNode2 = cellCornerNodes[i + 1]; }
-            //else { cellCornerNode2 = cellCornerNodes[0]; }
-        }
-
-        // Create cell edges based on nodes
-        GameObject firstNode, secondNode;
-        for (int i = 1; i <= cellCornerNodes.Count; i++)
-        {
-            firstNode = cellCornerNodes[i - 1];
-            if (i == cellCornerNodes.Count)
-            {
-                secondNode = cellCornerNodes[0];
+            // Get edges
+            GameObject edge1 = connectionEdges[i];
+            GameObject edge2;
+            if (i != connectionEdges.Count - 1) 
+            { 
+                edge2 = connectionEdges[i + 1]; 
             }
             else
             {
-                secondNode = cellCornerNodes[i];
+                edge2 = connectionEdges[0]; // also need to increment angle by 360
             }
 
-            Vector3 positionMid = Vector3.Lerp(firstNode.transform.position, secondNode.transform.position, 0.5f);
-
-            GameObject edge = Instantiate(edgePrefab, originCell.transform);
-            edge.transform.position = positionMid;
-            EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
-
-            edgeScript.fromNode = firstNode;
-            edgeScript.toNode = secondNode;
-
-            originCellScript.edges.Add(edge);
-
-            edgeList.Add(edge);
-        }
-
-        // Connect edges to their connecting cells
-        foreach (GameObject edge in originCellScript.edges)
-        {
-            // Work out what cell the edge should connect to based on angle difference between cell->edge and cell->connectedCell
-            EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
-            GameObject cellToConnectTo = null;
-            float maxDegreesDifference = 20.0f;
-            foreach (GameObject connectedCell in connectedCells)
+            // Get in between angle
+            Vector3 vector1 = (originPoint - edge1.transform.position).normalized;
+            Vector3 vector2 = (originPoint - edge2.transform.position).normalized;
+            float angle1 = Vector3.SignedAngle(Vector3.forward, vector1, Vector3.up);
+            float angle2 = Vector3.SignedAngle(Vector3.forward, vector2, Vector3.up);
+            if (angle1 < 0) { angle1 += 360; }
+            if (angle2 < 0) { angle2 += 360; }
+            if (i == connectionEdges.Count - 1) // For looping, add 360 degrees
             {
-                // Vectors
-                Vector3 vectorToCell = connectedCell.transform.position - originCell.transform.position;
-                Vector3 vectorToEdge = edge.transform.position - originCell.transform.position;
-
-                // Angles
-                float angleBetween = Vector3.SignedAngle(vectorToCell, vectorToEdge, Vector3.up);
-
-                // Comparison
-                if (Mathf.Abs(angleBetween) < maxDegreesDifference)
-                {
-                    cellToConnectTo = connectedCell;
-                }
+                angle2 += 360.0f;
             }
-            edgeScript.fromCell = originCell;
-            edgeScript.toCell = cellToConnectTo; 
-            /*
-             * Sometimes, unfortunately, the toCell stays null
-             * This appears to be due to floating point errors when getting the two angles
-             * A wide margin of error is fixing this, but I eventually will need a more
-             * robust solution to tie connection and edge together
-             */
+            float tweenAngle = Mathf.Lerp(angle1, angle2, 0.5f);
+
+            // Get in between position
+            Quaternion inBetweenQuaternion = Quaternion.AngleAxis(tweenAngle, Vector3.up);
+            Vector3 inBetweenVector = inBetweenQuaternion * Vector3.forward;
+            Vector3 inBetweenPosition = originPoint - (inBetweenVector * radius);
+
+            // Create corner in between
+            GameObject node = Instantiate(nodePrefab, inBetweenPosition, new Quaternion(), originCell.transform);
+            node.GetComponent<NodeScript>().positionColour = Color.green;
+
+            // Add to edges
+            edge1.GetComponent<EdgeScript>().toNode = node;
+            edge2.GetComponent<EdgeScript>().fromNode = node;
+
+            // Add to cell
+            originCellScript.cornerNodes.Add(node);
         }
+
+        // Add connected edges to origin cell (maybe to both cells?)
+        originCellScript.edges = connectionEdges;
     }
 
     List<Connection> GetConnections()
