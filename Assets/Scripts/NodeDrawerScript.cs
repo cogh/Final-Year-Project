@@ -192,6 +192,13 @@ public class NodeDrawerScript : MonoBehaviour
         // Create all cells as children of their parent nodes and inherit connections
         if (Input.GetKeyDown(KeyCode.Alpha3))
         {
+            // Need to sort connection order for all nodes clockwise here before inheriting
+            foreach (GameObject node in nodeList)
+            {
+                // Sort node connections clockwise
+                node.GetComponent<NodeScript>().connectedNodes.Sort(new GameObjectAxisAngleComparer(node.transform.position));
+            }
+
             // Create cells
             foreach (GameObject node in nodeList)
             {
@@ -258,8 +265,9 @@ public class NodeDrawerScript : MonoBehaviour
                 if (nodeScript.type == "tween")
                 {
                     // Adopt edges of adjacent star cells
-                    foreach (GameObject connectedCell in cellScript.connectedCells)
+                    for (int i = 0; i < cellScript.connectedCells.Count; i++)
                     {
+                        GameObject connectedCell = cellScript.connectedCells[i];
                         CellScript connectedCellScript = connectedCell.GetComponent<CellScript>();
                         // Adopt edges of star cells
                         if (connectedCellScript.type == "star")
@@ -278,42 +286,63 @@ public class NodeDrawerScript : MonoBehaviour
                             // Adopt edge
                             cellScript.edges.Add(edgeToAdopt);
                         }
+                        else if (connectedCellScript.type == "fill") // need to make sure this is set
+                        {
+                            // Get adjacent cell connections
+                            GameObject clockwiseCell;
+                            GameObject antiClockwiseCell;
+                            if (i < cellScript.connectedCells.Count-1)
+                            {
+                                clockwiseCell = cellScript.connectedCells[i + 1];
+                            }
+                            else
+                            {
+                                clockwiseCell = cellScript.connectedCells[0];
+                            }
+                            if (i > 0)
+                            {
+                                antiClockwiseCell = cellScript.connectedCells[i - 1];
+                            }
+                            else
+                            {
+                                antiClockwiseCell = cellScript.connectedCells[cellScript.connectedCells.Count-1];
+                            }
+
+                            // Get edges
+                            GameObject clockwiseEdge = null;
+                            foreach (GameObject edge in clockwiseCell.GetComponent<CellScript>().edges)
+                            {
+                                if (edge.GetComponent<EdgeScript>().toCell == cell)
+                                {
+                                    clockwiseEdge = edge;
+                                }
+                            }
+                            GameObject antiClockwiseEdge = null;
+                            foreach (GameObject edge in antiClockwiseCell.GetComponent<CellScript>().edges)
+                            {
+                                if (edge.GetComponent<EdgeScript>().toCell == cell)
+                                {
+                                    antiClockwiseEdge = edge;
+                                }
+                            }
+
+                            // Create connecting edge (between this and fill cell)
+                            GameObject newEdge = Instantiate(edgePrefab, cell.transform);
+                            EdgeScript newEdgeScript = newEdge.GetComponent<EdgeScript>();
+                            newEdgeScript.fromNode = clockwiseEdge.GetComponent<EdgeScript>().toNode;
+                            newEdgeScript.toNode = antiClockwiseEdge.GetComponent<EdgeScript>().fromNode;
+                            cellScript.edges.Add(newEdge);
+                        }
                     }
-
-                    // Create new tween edges
-                    GameObject fromEdge = cellScript.edges[0];
-                    GameObject toEdge = cellScript.edges[1];
-                    GameObject tweenEdge1 = Instantiate(edgePrefab, cell.transform);
-                    tweenEdge1.GetComponent<EdgeScript>().fromNode = fromEdge.GetComponent<EdgeScript>().fromNode;
-                    tweenEdge1.GetComponent<EdgeScript>().toNode = toEdge.GetComponent<EdgeScript>().toNode;
-                    GameObject tweenEdge2 = Instantiate(edgePrefab, cell.transform);
-                    tweenEdge2.GetComponent<EdgeScript>().toNode = fromEdge.GetComponent<EdgeScript>().toNode;
-                    tweenEdge2.GetComponent<EdgeScript>().fromNode = toEdge.GetComponent<EdgeScript>().fromNode;
-                    cellScript.edges.Add(tweenEdge1);
-                    cellScript.edges.Add(tweenEdge2);
-
-                    edgeList.Add(tweenEdge1);
-                    edgeList.Add(tweenEdge2);
-
-                    // Get corners for mesh generation
-                    cellScript.cornerNodes.Add(tweenEdge1.GetComponent<EdgeScript>().fromNode);
-                    cellScript.cornerNodes.Add(tweenEdge1.GetComponent<EdgeScript>().toNode);
-                    cellScript.cornerNodes.Add(tweenEdge2.GetComponent<EdgeScript>().fromNode);
-                    cellScript.cornerNodes.Add(tweenEdge2.GetComponent<EdgeScript>().toNode);
-
-                    // Need to add fromCell and toCell to tweenEdge1, and tweenEdge2
-                    // Can probably do this with clockwise logic, finding the connection in between tween connections, since can only have 2-4 connections
-                    // Join tween edge to third cell
-                    //tweenEdge1.GetComponent<EdgeScript>().toCell = cellScript.connectedCells[2];
-                    if (cellScript.connectedCells.Count > 3)
-                    {
-                        //tweenEdge2.GetComponent<EdgeScript>().toCell = cellScript.connectedCells[3];
-                    }
-
-                    // Temporarily disable tween edges entirely
-                    tweenEdge1.GetComponent<EdgeScript>().accessible = false;
-                    tweenEdge2.GetComponent<EdgeScript>().accessible = false;
                 }
+
+                // Add corner nodes
+                foreach (GameObject edge in cellScript.edges)
+                {
+                    EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
+                    cellScript.cornerNodes.Add(edgeScript.fromNode);
+                }
+                cellScript.edges.Sort(new GameObjectAxisAngleComparer(node.transform.position));
             }
         }
 
@@ -760,7 +789,7 @@ public class NodeDrawerScript : MonoBehaviour
             }
 
             // Set type
-            fillNodeScript.type = "fill";
+            fillNodeScript.type = "fill"; // Should I pass loop here?
 
             // Add to list
             nodeList.Add(fillNode);
