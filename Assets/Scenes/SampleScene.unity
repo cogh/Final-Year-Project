@@ -2180,6 +2180,16 @@ PrefabInstance:
       propertyPath: snapDistance
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 2351523084474707598, guid: 01a2dbb6792165946a5dc4e65c78fc85,
+        type: 3}
+      propertyPath: roadCellMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: f82b6c0bbaa4575459ecb9cf587f4860, type: 2}
+    - target: {fileID: 2351523084474707598, guid: 01a2dbb6792165946a5dc4e65c78fc85,
+        type: 3}
+      propertyPath: buildingCellMaterial
+      value: 
+      objectReference: {fileID: 2100000, guid: efdd91fa89b18334f9e5664c689fcbfb, type: 2}
     - target: {fileID: 6693442875898704927, guid: 01a2dbb6792165946a5dc4e65c78fc85,
         type: 3}
       propertyPath: m_Name

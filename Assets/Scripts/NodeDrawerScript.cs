@@ -199,6 +199,44 @@ public class NodeDrawerScript : MonoBehaviour
                 node.GetComponent<NodeScript>().connectedNodes.Sort(new GameObjectAxisAngleComparer(node.transform.position));
             }
 
+            // Now need to insert null (border) connections for tween nodes
+            foreach (GameObject node in nodeList)
+            {
+                NodeScript nodeScript = node.GetComponent<NodeScript>();
+                if (nodeScript.type == "tween")
+                {
+                    for (int i = 0; i < nodeScript.connectedNodes.Count; i++)
+                    {
+                        // Indexes
+                        int firstIndex = i;
+                        int secondIndex = i + 1;
+                        if (secondIndex == nodeScript.connectedNodes.Count)
+                        {
+                            secondIndex = 0;
+                        }
+
+                        // Nodes
+                        GameObject firstNode = nodeScript.connectedNodes[firstIndex];
+                        GameObject secondNode = nodeScript.connectedNodes[secondIndex];
+
+                        // Create null in between if both are star (no fill in between)
+                        if (firstNode.GetComponent<NodeScript>().type == "star" && secondNode.GetComponent<NodeScript>().type == "star")
+                        {
+                            nodeScript.connectedNodes.Insert(secondIndex, null); // could possibly make these actual objects, but inaccessible?
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Possibly could be interconnecting extra star node connections here to connect to fill nodes? (instead of using cells)
+            // Makes sense considering that it does in effect *actually* connect the cells together spacially
+
+            // This would probably apply to in-between border connections too
+
+            // If this is implemented, it would mean that edge generation is much simpler. It just takes connections as a parameter and creates edges accordingly
+            // *however*, in the case of null edges this is a little complicated, as the direction of them is not as obvious
+
             // Create cells
             foreach (GameObject node in nodeList)
             {
@@ -230,10 +268,17 @@ public class NodeDrawerScript : MonoBehaviour
                 GameObject cell = nodeScript.cell;
                 CellScript cellScript = cell.GetComponent<CellScript>();
 
-                // Inherit connections
+                // Inherit (non-null) connections
                 foreach (GameObject connectedNode in nodeScript.connectedNodes)
                 {
-                    cellScript.connectedCells.Add(connectedNode.GetComponent<NodeScript>().cell);
+                    if (connectedNode != null)
+                    {
+                        cellScript.connectedCells.Add(connectedNode.GetComponent<NodeScript>().cell);
+                    }
+                    else
+                    {
+                        cellScript.connectedCells.Add(null);
+                    }
                 }
             }
         }
@@ -261,37 +306,95 @@ public class NodeDrawerScript : MonoBehaviour
                 GameObject cell = nodeScript.cell;
                 CellScript cellScript = cell.GetComponent<CellScript>();
 
-                // Adopt edges of adjacent star cells
+                // Manage edges to adjacents and borders
                 if (nodeScript.type == "tween")
                 {
                     // Adopt edges of adjacent star cells
                     for (int i = 0; i < cellScript.connectedCells.Count; i++)
                     {
                         GameObject connectedCell = cellScript.connectedCells[i];
-                        CellScript connectedCellScript = connectedCell.GetComponent<CellScript>();
-                        // Adopt edges of star cells
-                        if (connectedCellScript.type == "star")
-                        {
-                            // Get edge to adopt based on which edge is connected to this cell
-                            GameObject edgeToAdopt = null;
-                            foreach (GameObject connectedCellEdge in connectedCellScript.edges)
-                            {
-                                EdgeScript connectedCellEdgeScript = connectedCellEdge.GetComponent<EdgeScript>();
-                                if (connectedCellEdgeScript.toCell == cell)
-                                {
-                                    edgeToAdopt = connectedCellEdge;
-                                }
-                            }
 
-                            // Adopt edge
-                            cellScript.edges.Add(edgeToAdopt);
+                        // Generate edge differently depending on connected type
+                        if (connectedCell != null)
+                        {
+                            CellScript connectedCellScript = connectedCell.GetComponent<CellScript>();
+                            // Adopt edges of star cells
+                            if (connectedCellScript.type == "star")
+                            {
+                                // Get edge to adopt based on which edge is connected to this cell
+                                GameObject edgeToAdopt = null;
+                                foreach (GameObject connectedCellEdge in connectedCellScript.edges)
+                                {
+                                    EdgeScript connectedCellEdgeScript = connectedCellEdge.GetComponent<EdgeScript>();
+                                    if (connectedCellEdgeScript.toCell == cell)
+                                    {
+                                        edgeToAdopt = connectedCellEdge;
+                                    }
+                                }
+
+                                // Adopt edge
+                                cellScript.edges.Add(edgeToAdopt);
+                            }
+                            else if (connectedCellScript.type == "fill") // need to make sure this is set
+                            {
+                                // Get adjacent cell connections
+                                GameObject clockwiseCell;
+                                GameObject antiClockwiseCell;
+                                if (i < cellScript.connectedCells.Count - 1)
+                                {
+                                    clockwiseCell = cellScript.connectedCells[i + 1];
+                                }
+                                else
+                                {
+                                    clockwiseCell = cellScript.connectedCells[0];
+                                }
+                                if (i > 0)
+                                {
+                                    antiClockwiseCell = cellScript.connectedCells[i - 1];
+                                }
+                                else
+                                {
+                                    antiClockwiseCell = cellScript.connectedCells[cellScript.connectedCells.Count - 1];
+                                }
+
+                                // Get edges
+                                GameObject clockwiseEdge = null;
+                                foreach (GameObject edge in clockwiseCell.GetComponent<CellScript>().edges)
+                                {
+                                    if (edge.GetComponent<EdgeScript>().toCell == cell)
+                                    {
+                                        clockwiseEdge = edge;
+                                    }
+                                }
+                                GameObject antiClockwiseEdge = null;
+                                foreach (GameObject edge in antiClockwiseCell.GetComponent<CellScript>().edges)
+                                {
+                                    if (edge.GetComponent<EdgeScript>().toCell == cell)
+                                    {
+                                        antiClockwiseEdge = edge;
+                                    }
+                                }
+
+                                // Create connecting edge (between this and fill cell)
+                                GameObject newEdge = Instantiate(edgePrefab, cell.transform);
+                                EdgeScript newEdgeScript = newEdge.GetComponent<EdgeScript>();
+                                newEdgeScript.fromNode = clockwiseEdge.GetComponent<EdgeScript>().toNode;
+                                newEdgeScript.toNode = antiClockwiseEdge.GetComponent<EdgeScript>().fromNode;
+                                newEdgeScript.fromCell = cell;
+                                newEdgeScript.toCell = connectedCell;
+                                cellScript.edges.Add(newEdge);
+                                edgeList.Add(newEdge);
+
+                                // Set accessibility
+                                newEdgeScript.accessible = false;
+                            }
                         }
-                        else if (connectedCellScript.type == "fill") // need to make sure this is set
+                        else // Generate null (filler) edge if null connection
                         {
                             // Get adjacent cell connections
                             GameObject clockwiseCell;
                             GameObject antiClockwiseCell;
-                            if (i < cellScript.connectedCells.Count-1)
+                            if (i < cellScript.connectedCells.Count - 1)
                             {
                                 clockwiseCell = cellScript.connectedCells[i + 1];
                             }
@@ -305,7 +408,7 @@ public class NodeDrawerScript : MonoBehaviour
                             }
                             else
                             {
-                                antiClockwiseCell = cellScript.connectedCells[cellScript.connectedCells.Count-1];
+                                antiClockwiseCell = cellScript.connectedCells[cellScript.connectedCells.Count - 1];
                             }
 
                             // Get edges
@@ -326,12 +429,16 @@ public class NodeDrawerScript : MonoBehaviour
                                 }
                             }
 
-                            // Create connecting edge (between this and fill cell)
+                            // Create border edge
                             GameObject newEdge = Instantiate(edgePrefab, cell.transform);
                             EdgeScript newEdgeScript = newEdge.GetComponent<EdgeScript>();
                             newEdgeScript.fromNode = clockwiseEdge.GetComponent<EdgeScript>().toNode;
                             newEdgeScript.toNode = antiClockwiseEdge.GetComponent<EdgeScript>().fromNode;
                             cellScript.edges.Add(newEdge);
+                            edgeList.Add(newEdge);
+
+                            // Set edge accessibility
+                            newEdgeScript.accessible = false;
                         }
                     }
                 }
@@ -349,15 +456,13 @@ public class NodeDrawerScript : MonoBehaviour
         // Adopt edges from tween to fill cells
         if (Input.GetKeyDown(KeyCode.Alpha6))
         {
-            foreach (GameObject node in nodeList)
+            foreach (GameObject cell in cellList)
             {
-                // Get relevant node/cell
-                NodeScript nodeScript = node.GetComponent<NodeScript>();
-                GameObject cell = nodeScript.cell;
+                // Get script
                 CellScript cellScript = cell.GetComponent<CellScript>();
 
                 // Adopt edges of adjacent tween cells
-                if (nodeScript.type == "fill")
+                if (cellScript.type == "fill")
                 {
                     foreach (GameObject connectedCell in cellScript.connectedCells)
                     {
@@ -368,6 +473,7 @@ public class NodeDrawerScript : MonoBehaviour
                             if (connectedCellEdgeScript.toCell == cell)
                             {
                                 cellScript.edges.Add(connectedCellEdge);
+                                cellScript.cornerNodes.Add(connectedCellEdge.GetComponent<EdgeScript>().fromNode);
                             }
                         }
                     }
@@ -445,7 +551,7 @@ public class NodeDrawerScript : MonoBehaviour
             car.transform.position = chosenNode.transform.position;
         }
 
-        // Generate star cell edges
+        // Generate meshes
         if (Input.GetKeyDown(KeyCode.Alpha0))
         {
             foreach (GameObject cell in cellList)
@@ -458,9 +564,23 @@ public class NodeDrawerScript : MonoBehaviour
                 }
                 List<int> triangleList = TriangulateConvexPolygonInts(cornerList);
                 MeshFilter cellMeshFilter = cell.GetComponent<MeshFilter>();
+                MeshRenderer cellMeshRenderer = cell.GetComponent<MeshRenderer>();
                 cellMeshFilter.mesh = new Mesh();
                 cellMeshFilter.mesh.vertices = cornerList.ToArray();
                 cellMeshFilter.mesh.triangles = triangleList.ToArray();
+
+                if (cellScript.type == "star")
+                {
+                    cellMeshRenderer.material = roadCellMaterial;
+                }
+                else if (cellScript.type == "tween")
+                {
+                    cellMeshRenderer.material = roadCellMaterial;
+                }
+                else if (cellScript.type == "fill")
+                {
+                    cellMeshRenderer.material = buildingCellMaterial;
+                }
             }
         }
     }
@@ -819,6 +939,7 @@ public class NodeDrawerScript : MonoBehaviour
             connectionEdge.GetComponent<EdgeScript>().fromCell = originCell;
             connectionEdge.GetComponent<EdgeScript>().toCell = connectedCell;
             connectionEdges.Add(connectionEdge);
+            edgeList.Add(connectionEdge);
         }
 
         // Sort edges by angle
@@ -860,6 +981,7 @@ public class NodeDrawerScript : MonoBehaviour
             {
                 // Create edge
                 GameObject edgeToInsert = Instantiate(edgePrefab, originCell.transform);
+                edgeList.Add(edgeToInsert);
 
                 // Get position
                 float inBetweenAngle = angle1 + (inBetweenAngleDistance * (j+1));
@@ -870,6 +992,9 @@ public class NodeDrawerScript : MonoBehaviour
                 // Set angle
                 edgeToInsert.transform.position = inBetweenPosition;
                 connectionEdges.Insert(i + j + 1, edgeToInsert);
+
+                // Set accessibility
+                edgeToInsert.GetComponent<EdgeScript>().accessible = false;
             }
             if (i > 1000) { break; }
             i += inBetweenAngleCount;
@@ -1195,4 +1320,8 @@ public class NodeDrawerScript : MonoBehaviour
     bool snapFrom = true;
     bool snapTo = true;
     public float snapDistance;
+
+    // Visual
+    public Material roadCellMaterial;
+    public Material buildingCellMaterial;
 }

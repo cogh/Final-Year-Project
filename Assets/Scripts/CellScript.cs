@@ -28,7 +28,10 @@ public class CellScript : MonoBehaviour
         Gizmos.color = connectionColour;
         foreach (GameObject cell in connectedCells)
         {
-            Gizmos.DrawLine(transform.position, cell.transform.position);
+            if (cell != null)
+            {
+                Gizmos.DrawLine(transform.position, cell.transform.position);
+            }
         }
     }
 
