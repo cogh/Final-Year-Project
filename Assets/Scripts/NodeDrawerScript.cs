@@ -568,6 +568,7 @@ public class NodeDrawerScript : MonoBehaviour
                 cellMeshFilter.mesh = new Mesh();
                 cellMeshFilter.mesh.vertices = cornerList.ToArray();
                 cellMeshFilter.mesh.triangles = triangleList.ToArray();
+                cellMeshFilter.mesh.RecalculateNormals();
 
                 if (cellScript.type == "star")
                 {
