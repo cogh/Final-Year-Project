@@ -2190,6 +2190,27 @@ PrefabInstance:
       propertyPath: buildingCellMaterial
       value: 
       objectReference: {fileID: 2100000, guid: efdd91fa89b18334f9e5664c689fcbfb, type: 2}
+    - target: {fileID: 2351523084474707598, guid: 01a2dbb6792165946a5dc4e65c78fc85,
+        type: 3}
+      propertyPath: facePrefab
+      value: 
+      objectReference: {fileID: 4586068779846380331, guid: add7349601cc0fd4a800726b50279ed8,
+        type: 3}
+    - target: {fileID: 2351523084474707598, guid: 01a2dbb6792165946a5dc4e65c78fc85,
+        type: 3}
+      propertyPath: roadWidth
+      value: 0.3
+      objectReference: {fileID: 0}
+    - target: {fileID: 2351523084474707598, guid: 01a2dbb6792165946a5dc4e65c78fc85,
+        type: 3}
+      propertyPath: buildingHeightMax
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2351523084474707598, guid: 01a2dbb6792165946a5dc4e65c78fc85,
+        type: 3}
+      propertyPath: buildingHeightMin
+      value: 0.3
+      objectReference: {fileID: 0}
     - target: {fileID: 6693442875898704927, guid: 01a2dbb6792165946a5dc4e65c78fc85,
         type: 3}
       propertyPath: m_Name

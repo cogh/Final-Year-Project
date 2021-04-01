@@ -291,7 +291,7 @@ public class NodeDrawerScript : MonoBehaviour
                 if (node.GetComponent<NodeScript>().type == "star")
                 {
                     GameObject cell = node.GetComponent<NodeScript>().cell;
-                    GenerateStarCellEdges(cell, 0.5f);
+                    GenerateStarCellEdges(cell, roadWidth);
                 }
             }
         }
@@ -557,30 +557,17 @@ public class NodeDrawerScript : MonoBehaviour
             foreach (GameObject cell in cellList)
             {
                 CellScript cellScript = cell.GetComponent<CellScript>();
-                List<Vector3> cornerList = new List<Vector3>();
-                foreach (GameObject cornerNode in cellScript.cornerNodes)
-                {
-                    cornerList.Add(cornerNode.transform.position - cell.transform.position); // from cell's transform's perspective
-                }
-                List<int> triangleList = TriangulateConvexPolygonInts(cornerList);
-                MeshFilter cellMeshFilter = cell.GetComponent<MeshFilter>();
-                MeshRenderer cellMeshRenderer = cell.GetComponent<MeshRenderer>();
-                cellMeshFilter.mesh = new Mesh();
-                cellMeshFilter.mesh.vertices = cornerList.ToArray();
-                cellMeshFilter.mesh.triangles = triangleList.ToArray();
-                cellMeshFilter.mesh.RecalculateNormals();
-
                 if (cellScript.type == "star")
                 {
-                    cellMeshRenderer.material = roadCellMaterial;
+                    CreateFloorMesh(cell,roadCellMaterial);
                 }
                 else if (cellScript.type == "tween")
                 {
-                    cellMeshRenderer.material = roadCellMaterial;
+                    CreateFloorMesh(cell, roadCellMaterial);
                 }
                 else if (cellScript.type == "fill")
                 {
-                    cellMeshRenderer.material = buildingCellMaterial;
+                    CreateBuildingMesh(cell, buildingCellMaterial);
                 }
             }
         }
@@ -1295,20 +1282,114 @@ public class NodeDrawerScript : MonoBehaviour
         }
     }
 
+    void CreateFloorMesh(GameObject cell, Material material)
+    {
+        CellScript cellScript = cell.GetComponent<CellScript>();
+        List<Vector3> cornerList = new List<Vector3>();
+        foreach (GameObject cornerNode in cellScript.cornerNodes)
+        {
+            cornerList.Add(cornerNode.transform.position - cell.transform.position); // from cell's transform's perspective
+        }
+        List<int> triangleList = TriangulateConvexPolygonInts(cornerList);
+        MeshFilter cellMeshFilter = cell.GetComponent<MeshFilter>();
+        MeshRenderer cellMeshRenderer = cell.GetComponent<MeshRenderer>();
+        cellMeshFilter.mesh = new Mesh();
+        cellMeshFilter.mesh.vertices = cornerList.ToArray();
+        cellMeshFilter.mesh.triangles = triangleList.ToArray();
+        cellMeshFilter.mesh.RecalculateNormals();
+        cellMeshRenderer.material = material;
+    }
+
+    void CreateBuildingMesh(GameObject cell, Material material)
+    {
+        // Set height
+        float height = Random.Range(buildingHeightMin,buildingHeightMax);
+
+        // Get cell script
+        CellScript cellScript = cell.GetComponent<CellScript>();
+
+        // Create face list for mesh generation
+        List<List<Vector3>> faces = new List<List<Vector3>>();
+
+        // Get floor face
+        List<Vector3> floorFace = new List<Vector3>();
+        foreach (GameObject cornerNode in cellScript.cornerNodes)
+        {
+            floorFace.Add(cornerNode.transform.position - cell.transform.position); // from cell's transform's perspective
+        }
+        faces.Add(floorFace);
+
+        // Get ceiling face
+        List<Vector3> ceilingFace = new List<Vector3>();
+        foreach (Vector3 position in floorFace)
+        {
+            ceilingFace.Add(position + (Vector3.up * height));
+        }
+        faces.Add(ceilingFace);
+
+        // Create faces for sides
+        for (int i = 0; i < floorFace.Count; i++)
+        {
+            // Get indexes
+            int firstIndex = i;
+            int secondIndex = i + 1;
+            if (secondIndex == floorFace.Count) { secondIndex = 0; }
+
+            // Get corner positions
+            Vector3 firstPos = floorFace[firstIndex];
+            Vector3 secondPos = floorFace[secondIndex];
+            Vector3 thirdPos = secondPos + (Vector3.up * height);
+            Vector3 fourthPos = firstPos + (Vector3.up * height);
+
+            // Create face
+            List<Vector3> newFace = new List<Vector3>();
+            newFace.Add(firstPos);
+            newFace.Add(secondPos);
+            newFace.Add(thirdPos);
+            newFace.Add(fourthPos);
+
+            // Add face to facelist
+            faces.Add(newFace);
+        }
+
+        // Create meshes for all faces
+        foreach (List<Vector3> face in faces)
+        {
+            // Create face object
+            GameObject faceObject = Instantiate(facePrefab,cell.transform);
+            MeshFilter faceMeshFilter = faceObject.GetComponent<MeshFilter>();
+            MeshRenderer faceMeshRenderer = faceObject.GetComponent<MeshRenderer>();
+
+            // Get tri list
+            List<int> triangleList = TriangulateConvexPolygonInts(face);
+            faceMeshFilter.mesh = new Mesh();
+            faceMeshFilter.mesh.vertices = face.ToArray();
+            faceMeshFilter.mesh.triangles = triangleList.ToArray();
+            faceMeshFilter.mesh.RecalculateNormals();
+            faceMeshRenderer.material = material;
+        }
+    }
+
     private void OnDrawGizmos()
     {
         Gizmos.DrawWireSphere(cursor.transform.position, 1.0f);
         if (selection != null) { Gizmos.DrawLine(cursor.transform.position, selection.transform.position); }
     }
 
-    // Generation
+    // Prefabs
     public GameObject nodePrefab;
     public GameObject cellPrefab;
     public GameObject edgePrefab;
+    public GameObject facePrefab; // This should probably be renamed to MeshObject or something
     public GameObject carPrefab;
     public List<GameObject> nodeList;
     public List<GameObject> cellList;
     public List<GameObject> edgeList;
+
+    // Generation rules
+    public float roadWidth;
+    public float buildingHeightMax;
+    public float buildingHeightMin;
 
     // Interface
     GameObject drawFromNode;
