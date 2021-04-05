@@ -20,6 +20,7 @@ class Triangle
     public Vector3 v2;
     public Vector3 v3;
 }
+
 class Connection
 {
     public Connection(GameObject argFrom, GameObject argTo)
@@ -79,13 +80,11 @@ public class NodeDrawerScript : MonoBehaviour
                 if (drawFromNode != null)
                 {
                     NodeScript script = drawFromNode.GetComponent<NodeScript>();
-                    Debug.Log("About to get draw from node. Count: " + script.connectedNodes.Count);
                 }
                 drawFromNode = GetOrCreateSnappableNode(cursor.transform.position);
                 if (drawFromNode != null)
                 {
                     NodeScript script = drawFromNode.GetComponent<NodeScript>();
-                    Debug.Log("Got draw from node. Count: " + script.connectedNodes.Count);
                 }
             }
             else
@@ -107,13 +106,11 @@ public class NodeDrawerScript : MonoBehaviour
                 if (drawFromNode != null)
                 {
                     NodeScript script = drawFromNode.GetComponent<NodeScript>();
-                    Debug.Log("About to get draw to. Count: " + script.connectedNodes.Count);
                 }
                 drawToNode = GetOrCreateSnappableNode(cursor.transform.position); // that isnt draw from node
                 if (drawFromNode != null)
                 {
                     NodeScript script = drawFromNode.GetComponent<NodeScript>();
-                    Debug.Log("Got draw to node. Count: " + script.connectedNodes.Count);
                 }
             }
             else
@@ -130,7 +127,6 @@ public class NodeDrawerScript : MonoBehaviour
             if (drawFromNode != null)
             {
                 NodeScript script = drawFromNode.GetComponent<NodeScript>();
-                Debug.Log("About to do intersections. Count: " + script.connectedNodes.Count);
             }
             foreach (Connection connection in connections)
             {
@@ -177,16 +173,10 @@ public class NodeDrawerScript : MonoBehaviour
         //CreateNodeFromCursor();
         //ConnectNodes();
 
-        // Create tween nodes
+        // Subdivide nodes
         if (Input.GetKeyDown(KeyCode.Alpha1))
         {
-            CreateTweenNodes();
-        }
-
-        // Create fill nodes
-        if (Input.GetKeyDown(KeyCode.Alpha2))
-        {
-            CreateFillNodes();
+            SubdivideNodeList(nodeList);
         }
 
         // Create all cells as children of their parent nodes and inherit connections
@@ -525,8 +515,37 @@ public class NodeDrawerScript : MonoBehaviour
             }
         }
 
-        // Create car
+        // Generate meshes
         if (Input.GetKeyDown(KeyCode.Alpha9))
+        {
+            foreach (GameObject cell in cellList)
+            {
+                // Get cell script
+                CellScript cellScript = cell.GetComponent<CellScript>();
+
+                // Create meshes based on cell type
+                if (cellScript.type == "fill")
+                {
+                    // Create meshes based on subcells
+                    List<GameObject> subCellList = SubdivideCell(cell, 3);
+                    foreach (GameObject subCell in subCellList)
+                    {
+                        CreateBuildingMesh(subCell, buildingCellMaterial);
+                    }
+                }
+                else if (cellScript.type == "star")
+                {
+                    CreateFloorMesh(cell, roadCellMaterial);
+                }
+                else if (cellScript.type == "tween")
+                {
+                    CreateFloorMesh(cell, roadCellMaterial);
+                }
+            }
+        }
+
+        // Create car
+        if (Input.GetKeyDown(KeyCode.Alpha0))
         {
             // Get potential nodes
             List<GameObject> potentialNodes = new List<GameObject>();
@@ -549,27 +568,6 @@ public class NodeDrawerScript : MonoBehaviour
             GameObject car = Instantiate(carPrefab);
             car.GetComponent<CarScript>().targetNode = chosenNode;
             car.transform.position = chosenNode.transform.position;
-        }
-
-        // Generate meshes
-        if (Input.GetKeyDown(KeyCode.Alpha0))
-        {
-            foreach (GameObject cell in cellList)
-            {
-                CellScript cellScript = cell.GetComponent<CellScript>();
-                if (cellScript.type == "star")
-                {
-                    CreateFloorMesh(cell,roadCellMaterial);
-                }
-                else if (cellScript.type == "tween")
-                {
-                    CreateFloorMesh(cell, roadCellMaterial);
-                }
-                else if (cellScript.type == "fill")
-                {
-                    CreateBuildingMesh(cell, buildingCellMaterial);
-                }
-            }
         }
     }
 
@@ -802,6 +800,23 @@ public class NodeDrawerScript : MonoBehaviour
             }
         }
 
+        // Make only unique set of loops
+        loopList = CreateUniqueLoopList(loopList);
+
+        // Remove largest loop as it is an inverse loop
+        if (loopList.Count > 1)
+        {
+            List<GameObject> biggestLoop = loopList[0];
+            foreach (List<GameObject> loop in loopList)
+            {
+                if (loop.Count > biggestLoop.Count)
+                {
+                    biggestLoop = loop;
+                }
+            }
+            loopList.Remove(biggestLoop);
+        }
+
         // Return looplist
         return loopList;
     }
@@ -846,62 +861,7 @@ public class NodeDrawerScript : MonoBehaviour
 
     void CreateFillNodes()
     {
-        // Create loop list
-        List<List<GameObject>> loopList = new List<List<GameObject>>();
-
-        // Populate looplist
-        loopList = DetectLoops(nodeList);
-
-        // Make only unique set of loops
-        loopList = CreateUniqueLoopList(loopList);
-
-        // Remove largest loop as it is an inverse loop
-        if (loopList.Count > 1)
-        {
-            List<GameObject> biggestLoop = loopList[0];
-            foreach (List<GameObject> loop in loopList)
-            {
-                if (loop.Count > biggestLoop.Count)
-                {
-                    biggestLoop = loop;
-                }
-            }
-            loopList.Remove(biggestLoop);
-        }
-
-        // For every loop, generate node in the middle
-        foreach (List<GameObject> loop in loopList)
-        {
-            Vector3 averagePosition = Vector3.zero;
-            int count = 0;
-            foreach (GameObject node in loop)
-            {
-                averagePosition += node.transform.position;
-                count++;
-            }
-            averagePosition /= count;
-
-            // Instantiate node
-            GameObject fillNode = Instantiate(nodePrefab, averagePosition, Quaternion.identity);
-
-            // Set node connections to all surrounding tween nodes
-            NodeScript fillNodeScript = fillNode.GetComponent<NodeScript>();
-            foreach (GameObject tweenNode in loop)
-            {
-                NodeScript tweenNodeScript = tweenNode.GetComponent<NodeScript>();
-                if (tweenNodeScript.type == "tween")
-                {
-                    fillNodeScript.connectedNodes.Add(tweenNode);
-                    tweenNodeScript.connectedNodes.Add(fillNode);
-                }
-            }
-
-            // Set type
-            fillNodeScript.type = "fill"; // Should I pass loop here?
-
-            // Add to list
-            nodeList.Add(fillNode);
-        }
+        SubdivideNodeList(nodeList);
     }
 
     void GenerateStarCellEdges(GameObject originCell, float radius)
@@ -1089,6 +1049,26 @@ public class NodeDrawerScript : MonoBehaviour
         return nodeConnections;
     }
 
+    List<Connection> GetConnections(List<GameObject> nodes) // Should probably make this the only variant eventually
+    {
+        List<Connection> nodeConnections = new List<Connection>();
+        foreach (GameObject node in nodes)
+        {
+            NodeScript nodeScript = node.GetComponent<NodeScript>();
+            foreach (GameObject connectedNode in nodeScript.connectedNodes)
+            {
+                // Remove connection from connectedNode to avoid duplicates
+                NodeScript connectedNodeScript = connectedNode.GetComponent<NodeScript>();
+                connectedNodeScript.connectedNodes.Remove(node);
+
+                // Create connection object
+                Connection nodeConnection = new Connection(node, connectedNode);
+                nodeConnections.Add(nodeConnection);
+            }
+        }
+        return nodeConnections;
+    }
+
     GameObject GetClosestNode()
     {
         GameObject closestNode = null;
@@ -1186,11 +1166,158 @@ public class NodeDrawerScript : MonoBehaviour
         return vClosestPoint;
     }
 
+    List<GameObject> SubdivideNodeList(List<GameObject> nodes)
+    {
+        // Get connections
+        List<Connection> connections = GetConnections(nodes);
+
+        // Subdivide connections
+        foreach (Connection connection in connections)
+        {
+            SubdivideConnection(connection, Vector3.Lerp(connection.from.transform.position, connection.to.transform.position, 0.5f));
+        }
+
+        // Create loop list
+        List<List<GameObject>> loopList = new List<List<GameObject>>();
+
+        // Populate looplist
+        loopList = DetectLoops(nodes);
+
+        // For every loop, generate node in the middle
+        foreach (List<GameObject> loop in loopList)
+        {
+            Vector3 averagePosition = Vector3.zero;
+            int count = 0;
+            foreach (GameObject node in loop)
+            {
+                averagePosition += node.transform.position;
+                count++;
+            }
+            averagePosition /= count;
+
+            // Instantiate node
+            GameObject fillNode = Instantiate(nodePrefab, averagePosition, Quaternion.identity);
+
+            // Set node connections to all surrounding tween nodes
+            NodeScript fillNodeScript = fillNode.GetComponent<NodeScript>();
+            foreach (GameObject tweenNode in loop)
+            {
+                NodeScript tweenNodeScript = tweenNode.GetComponent<NodeScript>();
+                if (tweenNodeScript.type == "tween")
+                {
+                    fillNodeScript.connectedNodes.Add(tweenNode);
+                    tweenNodeScript.connectedNodes.Add(fillNode);
+                }
+            }
+
+            // Set type 
+            fillNodeScript.type = "fill"; // Should I pass loop here?
+
+            // Add to list
+            nodes.Add(fillNode);
+        }
+
+        return nodes;
+    }
+
+    List<GameObject> SubdivideCell(GameObject cell, int subdivisions)
+    {
+        // Create object lists
+        List<GameObject> cells = new List<GameObject>();
+        List<GameObject> nodes = new List<GameObject>();
+
+        // Get cell script
+        CellScript cellScript = cell.GetComponent<CellScript>();
+
+        // Copy cornernodes from cell
+        foreach(GameObject node in cellScript.cornerNodes)
+        {
+            GameObject newNode = Instantiate(nodePrefab, node.transform);
+            nodes.Add(newNode);
+        }
+
+        // Connect corner nodes
+        for (int i = 0; i < nodes.Count; i++)
+        {
+            int firstIndex = i;
+            int secondIndex = i + 1;
+            if (secondIndex == nodes.Count) { secondIndex = 0; }
+
+            GameObject firstNode = nodes[firstIndex];
+            GameObject secondNode = nodes[secondIndex];
+
+            firstNode.GetComponent<NodeScript>().connectedNodes.Add(secondNode);
+            secondNode.GetComponent<NodeScript>().connectedNodes.Add(firstNode);
+        }
+
+        // Sort nodes
+        nodes.Sort(new GameObjectAxisAngleComparer(cell.transform.position));
+
+        // Subdivide
+        for (int i = 0; i < subdivisions; i++)
+        {
+            SubdivideNodeList(nodes);
+        }
+
+        // One last DetectLoops() to make cells
+        List<Connection> finalConnections = GetConnections(nodes);
+
+        // Subdivide connections
+        foreach (Connection connection in finalConnections)
+        {
+            SubdivideConnection(connection, Vector3.Lerp(connection.from.transform.position, connection.to.transform.position, 0.5f));
+        }
+
+        // Create loop list
+        List<List<GameObject>> loopList = new List<List<GameObject>>();
+
+        // Populate looplist
+        loopList = DetectLoops(nodes);
+
+        // For every loop, generate cell in the middle
+        foreach (List<GameObject> loop in loopList)
+        {
+            Vector3 averagePosition = Vector3.zero;
+            int count = 0;
+            foreach (GameObject node in loop)
+            {
+                averagePosition += node.transform.position;
+                count++;
+            }
+            averagePosition /= count;
+
+            // Instantiate node
+            GameObject subCell = Instantiate(cellPrefab, averagePosition, Quaternion.identity);
+
+            // Add corners from loop
+            CellScript subCellScript = subCell.GetComponent<CellScript>();
+            foreach (GameObject node in loop)
+            {
+                NodeScript nodeScript = node.GetComponent<NodeScript>();
+                if (nodeScript.type != "tween")
+                {
+                    subCellScript.cornerNodes.Add(node);
+                }
+            }
+            subCellScript.cornerNodes.Sort(new GameObjectAxisAngleComparer(subCell.transform.position));
+
+
+            // Set type 
+            subCellScript.type = "sub_cell"; // Should I pass loop here?
+
+            // Add to list
+            cells.Add(subCell);
+        }
+
+        // Return
+        return cells;
+    }
+
     GameObject SubdivideConnection(Connection connection, Vector3 point)
     {
         // Create node
         GameObject node = Instantiate(nodePrefab, point, Quaternion.identity);
-        node.GetComponent<NodeScript>().type = "star";
+        node.GetComponent<NodeScript>().type = "tween";
         nodeList.Add(node);
 
         // Break old connections
@@ -1202,6 +1329,10 @@ public class NodeDrawerScript : MonoBehaviour
         connection.to.GetComponent<NodeScript>().connectedNodes.Add(node);
         node.GetComponent<NodeScript>().connectedNodes.Add(connection.from);
         node.GetComponent<NodeScript>().connectedNodes.Add(connection.to);
+
+        // Change types
+        connection.from.GetComponent<NodeScript>().type = "star";
+        connection.to.GetComponent<NodeScript>().type = "star";
 
         // Return
         return node;

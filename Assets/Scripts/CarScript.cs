@@ -7,7 +7,7 @@ public class CarScript : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        
+        model = Instantiate(modelList[Random.Range(0, modelList.Count - 1)], transform);
     }
 
     // Update is called once per frame
@@ -18,6 +18,9 @@ public class CarScript : MonoBehaviour
 
         // Move towards node
         transform.position += direction * moveSpeed;
+
+        // Rotate towards node
+        transform.rotation = Quaternion.LookRotation(direction);
 
         // Collide with node
         if (Vector3.Distance(transform.position, targetNode.transform.position) < nodeCollisionDistance)
@@ -43,4 +46,7 @@ public class CarScript : MonoBehaviour
     public float moveSpeed;
     public float nodeCollisionDistance;
     Vector3 direction;
+
+    public List<GameObject> modelList;
+    GameObject model;
 }
