@@ -123,6 +123,19 @@ public class NodeDrawerScript : MonoBehaviour
             // Create intersecting nodes
             List<GameObject> intersectingNodes = new List<GameObject>();
             List<Connection> connections = GetConnections(); // Problem is here. Has doubling
+
+            // Remove connections from and to the fromline and toline
+            for (int i = 0; i < connections.Count; i++)
+            {
+                Connection connection = connections[i];
+                if (connection.from == drawFromNode || connection.from == drawToNode ||
+                    connection.to == drawFromNode || connection.to == drawToNode)
+                {
+                    connections.RemoveAt(i);
+                    i--;
+                }
+            }
+
             Connection mainConnection = new Connection(drawFromNode, drawToNode);
             if (drawFromNode != null)
             {
@@ -518,6 +531,7 @@ public class NodeDrawerScript : MonoBehaviour
         // Generate meshes
         if (Input.GetKeyDown(KeyCode.Alpha9))
         {
+            UpdateCityConstraints();
             foreach (GameObject cell in cellList)
             {
                 // Get cell script
@@ -526,11 +540,27 @@ public class NodeDrawerScript : MonoBehaviour
                 // Create meshes based on cell type
                 if (cellScript.type == "fill")
                 {
+                    // Work out material based on range
+                    float cellDistance = Vector3.Distance(centre, cell.transform.position);
+                    Material material;
+                    if (cellDistance < downTownRange)
+                    {
+                        material = downTownMaterial;
+                    }
+                    else if (cellDistance < midTownRange)
+                    {
+                        material = midTownMaterial;
+                    }
+                    else
+                    {
+                        material = upTownMaterial;
+                    }
+
                     // Create meshes based on subcells
-                    List<GameObject> subCellList = SubdivideCell(cell, 3);
+                    List<GameObject> subCellList = SubdivideCell(cell, 2);
                     foreach (GameObject subCell in subCellList)
                     {
-                        CreateBuildingMesh(subCell, buildingCellMaterial);
+                        CreateBuildingMesh(subCell, material);
                     }
                 }
                 else if (cellScript.type == "star")
@@ -922,6 +952,7 @@ public class NodeDrawerScript : MonoBehaviour
 
             // Count in betweens
             int inBetweenAngleCount = (int)Mathf.Round(angleDifference / 90)-1;
+            inBetweenAngleCount = Mathf.Max(inBetweenAngleCount, 0);
             float inBetweenAngleDistance = angleDifference / (inBetweenAngleCount+1);
 
             // Create in betweens
@@ -1026,7 +1057,26 @@ public class NodeDrawerScript : MonoBehaviour
                 }
             }
         }
-        return nodeConnections;
+
+        // Make connections unique (might break other things. add bool if so)
+        List<Connection> uniqueConnections = new List<Connection>();
+        foreach (Connection connection in nodeConnections)
+        {
+            bool isUnique = true;
+            foreach (Connection otherConnection in nodeConnections)
+            {
+                if (connection.from == otherConnection.to && connection.to == otherConnection.from)
+                {
+                    isUnique = false;
+                }
+            }
+            if (isUnique)
+            {
+                uniqueConnections.Add(connection);
+            }
+        }
+
+        return uniqueConnections;
     }
 
     List<Connection> GetConnections2() // Why did I have this variant? Is it still needed? Might need to replace something with this one
@@ -1287,7 +1337,7 @@ public class NodeDrawerScript : MonoBehaviour
             averagePosition /= count;
 
             // Instantiate node
-            GameObject subCell = Instantiate(cellPrefab, averagePosition, Quaternion.identity);
+            GameObject subCell = Instantiate(cellPrefab, averagePosition, Quaternion.identity, cell.transform);
 
             // Add corners from loop
             CellScript subCellScript = subCell.GetComponent<CellScript>();
@@ -1434,7 +1484,13 @@ public class NodeDrawerScript : MonoBehaviour
     void CreateBuildingMesh(GameObject cell, Material material)
     {
         // Set height
-        float height = Random.Range(buildingHeightMin,buildingHeightMax);
+        float heightMinMaxDifference = buildingHeightMax - buildingHeightMin;
+        float heightScalar = 1 - (Vector3.Distance(centre, cell.transform.position) / cityRadius);
+        float height = buildingHeightMin + (heightMinMaxDifference * heightScalar);
+        float heightRandomnessRange = buildingHeightRandomnessScalar * height;
+        float heightRandomness = Random.Range(-heightRandomnessRange * height, heightRandomnessRange * height);
+        height += heightRandomness;
+        height = Mathf.Max(height, 1.0f);
 
         // Get cell script
         CellScript cellScript = cell.GetComponent<CellScript>();
@@ -1501,6 +1557,32 @@ public class NodeDrawerScript : MonoBehaviour
         }
     }
 
+    void UpdateCityConstraints()
+    {
+        // Get centre
+        centre = Vector3.zero;
+        foreach (GameObject node in nodeList)
+        {
+            centre += node.transform.position;
+        }
+        centre /= nodeList.Count;
+
+        // Find radius from furthest point
+        cityRadius = 0.0f;
+        foreach (GameObject node in nodeList)
+        {
+            float distance = Vector3.Distance(node.transform.position,centre);
+            if (distance > cityRadius)
+            {
+                cityRadius = distance;
+            }
+        }
+
+        // Town ranges
+        midTownRange = cityRadius * 0.5f;
+        downTownRange = cityRadius * 0.25f;
+    }
+
     private void OnDrawGizmos()
     {
         Gizmos.DrawWireSphere(cursor.transform.position, 1.0f);
@@ -1521,6 +1603,11 @@ public class NodeDrawerScript : MonoBehaviour
     public float roadWidth;
     public float buildingHeightMax;
     public float buildingHeightMin;
+    public float cityRadius;
+    public float buildingHeightRandomnessScalar;
+    public Vector3 centre;
+    float midTownRange = 20.0f;
+    float downTownRange = 10.0f;
 
     // Interface
     GameObject drawFromNode;
@@ -1537,4 +1624,7 @@ public class NodeDrawerScript : MonoBehaviour
     // Visual
     public Material roadCellMaterial;
     public Material buildingCellMaterial;
+    public Material upTownMaterial;
+    public Material midTownMaterial;
+    public Material downTownMaterial;
 }

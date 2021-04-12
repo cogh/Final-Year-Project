@@ -8,11 +8,18 @@ public class CarScript : MonoBehaviour
     void Start()
     {
         model = Instantiate(modelList[Random.Range(0, modelList.Count - 1)], transform);
+
+        lightScript = GameObject.Find("Light").GetComponent<LightScript>();
+
+        myLight = GetComponent<Light>();
     }
 
     // Update is called once per frame
     void FixedUpdate()
     {
+        // Light
+        myLight.intensity = lightScript.timeScalar * 5.0f;
+
         // Direction
         direction = (targetNode.transform.position - transform.position).normalized;
 
@@ -49,4 +56,8 @@ public class CarScript : MonoBehaviour
 
     public List<GameObject> modelList;
     GameObject model;
+
+    LightScript lightScript;
+
+    Light myLight;
 }
