@@ -5,6 +5,11 @@ using UnityEditor.MemoryProfiler;
 using UnityEngine;
 
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                                               STRUCTS                                                                   //
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
 class Triangle
 {
     // Construct
@@ -56,9 +61,16 @@ class GameObjectAxisAngleComparer : IComparer<GameObject>
 }
 
 
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//                                                          MAIN SCRIPT                                                                    //
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 public class NodeDrawerScript : MonoBehaviour
 {
-    // Start is called before the first frame update
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //                                                          START EVENT                                                                    //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     void Start()
     {
         cursorState = "idle";
@@ -67,124 +79,33 @@ public class NodeDrawerScript : MonoBehaviour
         nodeList = new List<GameObject>();
     }
 
-    // Update is called once per frame
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //                                                     UPDATE EVENT / INTERFACING                                                          //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     void Update()
     {
 
-        // New interface code
-        if (Input.GetMouseButtonDown(0))
+        // Draw lines
+        if (Input.GetMouseButtonDown(0) && !AnyButtonsHovered())
         {
-            // Snap from
-            if (snapFrom)
-            {
-                if (drawFromNode != null)
-                {
-                    NodeScript script = drawFromNode.GetComponent<NodeScript>();
-                }
-                drawFromNode = GetOrCreateSnappableNode(cursor.transform.position);
-                if (drawFromNode != null)
-                {
-                    NodeScript script = drawFromNode.GetComponent<NodeScript>();
-                }
-            }
-            else
-            {
-                // Create
-                drawFromNode = Instantiate(nodePrefab, cursor.transform.position, new Quaternion());
-                drawFromNode.GetComponent<NodeScript>().type = "star";
-                nodeList.Add(drawFromNode);
-            }
-
-            // Set state
-            cursorState = "active";
+            StartLine();
         }
-        if (Input.GetMouseButtonUp(0))
+        if (Input.GetMouseButtonUp(0) && !AnyButtonsHovered())
         {
-            // Get draw to node
-            if (snapTo)
-            {
-                if (drawFromNode != null)
-                {
-                    NodeScript script = drawFromNode.GetComponent<NodeScript>();
-                }
-                drawToNode = GetOrCreateSnappableNode(cursor.transform.position); // that isnt draw from node
-                if (drawFromNode != null)
-                {
-                    NodeScript script = drawFromNode.GetComponent<NodeScript>();
-                }
-            }
-            else
-            {
-                drawToNode = Instantiate(nodePrefab, cursor.transform.position, new Quaternion());
-                drawToNode.GetComponent<NodeScript>().type = "star";
-                nodeList.Add(drawToNode);
-            }
-
-            // Create intersecting nodes
-            List<GameObject> intersectingNodes = new List<GameObject>();
-            List<Connection> connections = GetConnections(); // Problem is here. Has doubling
-
-            // Remove connections from and to the fromline and toline
-            for (int i = 0; i < connections.Count; i++)
-            {
-                Connection connection = connections[i];
-                if (connection.from == drawFromNode || connection.from == drawToNode ||
-                    connection.to == drawFromNode || connection.to == drawToNode)
-                {
-                    connections.RemoveAt(i);
-                    i--;
-                }
-            }
-
-            Connection mainConnection = new Connection(drawFromNode, drawToNode);
-            if (drawFromNode != null)
-            {
-                NodeScript script = drawFromNode.GetComponent<NodeScript>();
-            }
-            foreach (Connection connection in connections)
-            {
-                // Points
-                Vector3 intersectionPoint1 = Vector3.zero;
-                Vector3 intersectionPoint2 = Vector3.zero;
-                Vector3 fromPoint1 = mainConnection.from.transform.position;
-                Vector3 toPoint1 = mainConnection.to.transform.position;
-                Vector3 fromPoint2 = connection.from.transform.position;
-                Vector3 toPoint2 = connection.to.transform.position;
-
-                // Subdivide if intersecting
-                if (ClosestPointsOnTwoLines(out intersectionPoint1, out intersectionPoint2, fromPoint1, toPoint1, fromPoint2, toPoint2)) // Lines are infinite?
-                {
-                    if (Vector3.Distance(intersectionPoint1, intersectionPoint2) < 0.1f) // rephrase this as closestPoints, not intersection, and define intersection by epsilon
-                    {
-                        GameObject subdividedNode = SubdivideConnection(connection, intersectionPoint1);
-                        intersectingNodes.Add(subdividedNode);
-                    }
-                }
-            }
-
-            // Connect all nodes (including from/to and all intersecting)
-            if (drawFromNode != null)
-            {
-                NodeScript script = drawFromNode.GetComponent<NodeScript>();
-                Debug.Log("About to insert into final list. Count: " + script.connectedNodes.Count);
-            }
-            intersectingNodes.Insert(0, drawFromNode);
-            intersectingNodes.Add(drawToNode);
-            for (int i = 1; i < intersectingNodes.Count; i++)
-            {
-                GameObject fromNode = intersectingNodes[i - 1];
-                GameObject toNode = intersectingNodes[i];
-                fromNode.GetComponent<NodeScript>().connectedNodes.Add(toNode);
-                toNode.GetComponent<NodeScript>().connectedNodes.Add(fromNode);
-            }
-
-            // Reset state
-            cursorState = "idle";
+            EndLine();
         }
 
+        // Delete lines
+        if (Input.GetMouseButton(1) && !AnyButtonsHovered())
+        {
+            DeleteLine();
+        }
+
+        // Update cursor
         UpdateCursor();
-        //CreateNodeFromCursor();
-        //ConnectNodes();
 
         // Subdivide nodes
         if (Input.GetKeyDown(KeyCode.Alpha1))
@@ -192,207 +113,417 @@ public class NodeDrawerScript : MonoBehaviour
             SubdivideNodeList(nodeList);
         }
 
-        // Create all cells as children of their parent nodes and inherit connections
+        // Create a cell for each node
         if (Input.GetKeyDown(KeyCode.Alpha3))
         {
-            // Need to sort connection order for all nodes clockwise here before inheriting
-            foreach (GameObject node in nodeList)
-            {
-                // Sort node connections clockwise
-                node.GetComponent<NodeScript>().connectedNodes.Sort(new GameObjectAxisAngleComparer(node.transform.position));
-            }
-
-            // Now need to insert null (border) connections for tween nodes
-            foreach (GameObject node in nodeList)
-            {
-                NodeScript nodeScript = node.GetComponent<NodeScript>();
-                if (nodeScript.type == "tween")
-                {
-                    for (int i = 0; i < nodeScript.connectedNodes.Count; i++)
-                    {
-                        // Indexes
-                        int firstIndex = i;
-                        int secondIndex = i + 1;
-                        if (secondIndex == nodeScript.connectedNodes.Count)
-                        {
-                            secondIndex = 0;
-                        }
-
-                        // Nodes
-                        GameObject firstNode = nodeScript.connectedNodes[firstIndex];
-                        GameObject secondNode = nodeScript.connectedNodes[secondIndex];
-
-                        // Create null in between if both are star (no fill in between)
-                        if (firstNode.GetComponent<NodeScript>().type == "star" && secondNode.GetComponent<NodeScript>().type == "star")
-                        {
-                            nodeScript.connectedNodes.Insert(secondIndex, null); // could possibly make these actual objects, but inaccessible?
-                            break;
-                        }
-                    }
-                }
-            }
-
-            // Possibly could be interconnecting extra star node connections here to connect to fill nodes? (instead of using cells)
-            // Makes sense considering that it does in effect *actually* connect the cells together spacially
-
-            // This would probably apply to in-between border connections too
-
-            // If this is implemented, it would mean that edge generation is much simpler. It just takes connections as a parameter and creates edges accordingly
-            // *however*, in the case of null edges this is a little complicated, as the direction of them is not as obvious
-
-            // Create cells
-            foreach (GameObject node in nodeList)
-            {
-                // Get node script
-                NodeScript nodeScript = node.GetComponent<NodeScript>();
-
-                // Create cell
-                GameObject cell = Instantiate(cellPrefab, node.transform);
-
-                // Get cell script
-                CellScript cellScript = cell.GetComponent<CellScript>();
-
-                // Inherit type
-                cellScript.type = nodeScript.type;
-
-                // Connect cell to node
-                nodeScript.cell = cell;
-                cellScript.parentNode = node;
-
-                // Add to cell list
-                cellList.Add(cell);
-            }
-
-            // Inherit connections
-            foreach (GameObject node in nodeList)
-            {
-                // Get node and cell script
-                NodeScript nodeScript = node.GetComponent<NodeScript>();
-                GameObject cell = nodeScript.cell;
-                CellScript cellScript = cell.GetComponent<CellScript>();
-
-                // Inherit (non-null) connections
-                foreach (GameObject connectedNode in nodeScript.connectedNodes)
-                {
-                    if (connectedNode != null)
-                    {
-                        cellScript.connectedCells.Add(connectedNode.GetComponent<NodeScript>().cell);
-                    }
-                    else
-                    {
-                        cellScript.connectedCells.Add(null);
-                    }
-                }
-            }
+            CreateCells();
         }
 
         // Generate star cell edges
         if (Input.GetKeyDown(KeyCode.Alpha4))
         {
-            foreach (GameObject node in nodeList)
-            {
-                if (node.GetComponent<NodeScript>().type == "star")
-                {
-                    GameObject cell = node.GetComponent<NodeScript>().cell;
-                    GenerateStarCellEdges(cell, roadWidth);
-                }
-            }
+            GenerateStarCellEdges();
         }
 
         // Generate tween cell edges
         if (Input.GetKeyDown(KeyCode.Alpha5))
         {
+            CreateTweenCellEdges();
+        }
+
+        // Adopt edges from tween to fill cells
+        if (Input.GetKeyDown(KeyCode.Alpha6))
+        {
+            CreateFillCellEdges();
+        }
+
+        // Create edge nodes
+        if (Input.GetKeyDown(KeyCode.Alpha7))
+        {
+            CreateEdgeNodes();
+        }
+
+        // Connect edge nodes
+        if (Input.GetKeyDown(KeyCode.Alpha8))
+        {
+            ConnectEdgeNodes();
+        }
+
+        // Generate meshes
+        if (Input.GetKeyDown(KeyCode.Alpha9))
+        {
+            GenerateCellMeshes();
+        }
+
+        // Create car
+        if (Input.GetKeyDown(KeyCode.Alpha0))
+        {
+            CreateCar();
+        }
+    }
+
+
+
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //                                                         GENERATION METHODS                                                              //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    public void SubdivideNodeWeb()
+    {
+        SubdivideNodeList(nodeList);
+    }
+
+    public void CreateCells()
+    {
+        // Need to sort connection order for all nodes clockwise here before inheriting
+        foreach (GameObject node in nodeList)
+        {
+            // Sort node connections clockwise
+            node.GetComponent<NodeScript>().connectedNodes.Sort(new GameObjectAxisAngleComparer(node.transform.position));
+        }
+
+        // Now need to insert null (border) connections for tween nodes
+        foreach (GameObject node in nodeList)
+        {
+            NodeScript nodeScript = node.GetComponent<NodeScript>();
+            if (nodeScript.type == "tween")
+            {
+                for (int i = 0; i < nodeScript.connectedNodes.Count; i++)
+                {
+                    // Indexes
+                    int firstIndex = i;
+                    int secondIndex = i + 1;
+                    if (secondIndex == nodeScript.connectedNodes.Count)
+                    {
+                        secondIndex = 0;
+                    }
+
+                    // Nodes
+                    GameObject firstNode = nodeScript.connectedNodes[firstIndex];
+                    GameObject secondNode = nodeScript.connectedNodes[secondIndex];
+
+                    // Create null in between if both are star (no fill in between)
+                    if (firstNode.GetComponent<NodeScript>().type == "star" && secondNode.GetComponent<NodeScript>().type == "star")
+                    {
+                        nodeScript.connectedNodes.Insert(secondIndex, null); // could possibly make these actual objects, but inaccessible?
+                        break;
+                    }
+                }
+            }
+        }
+
+        // Possibly could be interconnecting extra star node connections here to connect to fill nodes? (instead of using cells)
+        // Makes sense considering that it does in effect *actually* connect the cells together spacially
+
+        // This would probably apply to in-between border connections too
+
+        // If this is implemented, it would mean that edge generation is much simpler. It just takes connections as a parameter and creates edges accordingly
+        // *however*, in the case of null edges this is a little complicated, as the direction of them is not as obvious
+
+        // Create cells
+        foreach (GameObject node in nodeList)
+        {
+            // Get node script
+            NodeScript nodeScript = node.GetComponent<NodeScript>();
+
+            // Create cell
+            GameObject cell = Instantiate(cellPrefab, node.transform);
+
+            // Get cell script
+            CellScript cellScript = cell.GetComponent<CellScript>();
+
+            // Inherit type
+            cellScript.type = nodeScript.type;
+
+            // Connect cell to node
+            nodeScript.cell = cell;
+            cellScript.parentNode = node;
+
+            // Add to cell list
+            cellList.Add(cell);
+        }
+
+        // Inherit connections
+        foreach (GameObject node in nodeList)
+        {
+            // Get node and cell script
+            NodeScript nodeScript = node.GetComponent<NodeScript>();
+            GameObject cell = nodeScript.cell;
+            CellScript cellScript = cell.GetComponent<CellScript>();
+
+            // Inherit (non-null) connections
+            foreach (GameObject connectedNode in nodeScript.connectedNodes)
+            {
+                if (connectedNode != null)
+                {
+                    cellScript.connectedCells.Add(connectedNode.GetComponent<NodeScript>().cell);
+                }
+                else
+                {
+                    cellScript.connectedCells.Add(null);
+                }
+            }
+        }
+    }
+
+    public void CreateTweenNodes() // Subdivides nodeweb/graph   Is this still needed?
+    {
+        // Turn all current nodes into star nodes so repeated subdivision is possible
+        foreach (GameObject node in nodeList)
+        {
+            if (node.GetComponent<NodeScript>().type != "star")
+            {
+                node.GetComponent<NodeScript>().type = "star";
+            }
+        }
+
+        // Create new tween nodes
+        if (Input.GetKeyDown(KeyCode.Alpha1))
+        {
+            // Get all connections between nodes
+            List<Connection> nodeConnections = new List<Connection>();
             foreach (GameObject node in nodeList)
             {
-                // Get relevant node/cell
                 NodeScript nodeScript = node.GetComponent<NodeScript>();
-                GameObject cell = nodeScript.cell;
-                CellScript cellScript = cell.GetComponent<CellScript>();
-
-                // Manage edges to adjacents and borders
-                if (nodeScript.type == "tween")
+                foreach (GameObject connectedNode in nodeScript.connectedNodes)
                 {
-                    // Adopt edges of adjacent star cells
-                    for (int i = 0; i < cellScript.connectedCells.Count; i++)
+                    // Remove connection from connectedNode to avoid duplicates
+                    NodeScript connectedNodeScript = connectedNode.GetComponent<NodeScript>();
+                    connectedNodeScript.connectedNodes.Remove(node);
+
+                    // Create connection object
+                    Connection nodeConnection = new Connection(node, connectedNode);
+                    nodeConnections.Add(nodeConnection);
+                }
+            }
+
+            // Create tween node for each connection
+            foreach (Connection nodeConnection in nodeConnections)
+            {
+                // Get nodes
+                GameObject fromNode = nodeConnection.from;
+                GameObject toNode = nodeConnection.to;
+
+                // Create node
+                Vector3 tweenPosition = Vector3.Lerp(fromNode.transform.position, toNode.transform.position, 0.5f);
+                GameObject tweenNode = Instantiate(nodePrefab, tweenPosition, Quaternion.identity);
+                tweenNode.GetComponent<NodeScript>().type = "tween";
+                nodeList.Add(tweenNode);
+
+                // Get scripts
+                NodeScript tweenScript = tweenNode.GetComponent<NodeScript>();
+                NodeScript fromScript = fromNode.GetComponent<NodeScript>();
+                NodeScript toScript = toNode.GetComponent<NodeScript>();
+
+                // Form new connections
+                tweenScript.connectedNodes.Add(fromNode);
+                tweenScript.connectedNodes.Add(toNode);
+                fromScript.connectedNodes.Add(tweenNode);
+                toScript.connectedNodes.Add(tweenNode);
+
+                // Break old connections
+                fromScript.connectedNodes.Remove(toNode);
+                toScript.connectedNodes.Remove(fromNode);
+            }
+        }
+    }
+
+    public void CreateAllCellEdges()
+    {
+        GenerateStarCellEdges();
+        CreateTweenCellEdges();
+        CreateFillCellEdges();
+    }
+
+    public void GenerateStarCellEdges()
+    {
+        float radius = roadWidth;
+        foreach (GameObject node in nodeList)
+        {
+            if (node.GetComponent<NodeScript>().type == "star")
+            {
+                // Origin cell
+                GameObject originCell = node.GetComponent<NodeScript>().cell;
+
+                // Original node
+                CellScript originCellScript = originCell.GetComponent<CellScript>();
+                Vector3 originPoint = originCell.transform.position;
+
+                // Get connected nodes
+                List<GameObject> connectedCells = originCellScript.connectedCells;
+
+                // Create edges at connection midpoints
+                List<GameObject> connectionEdges = new List<GameObject>();
+                foreach (GameObject connectedCell in connectedCells)
+                {
+                    // Get position
+                    Vector3 connectionPoint = connectedCell.transform.position;
+                    Vector3 connectionVector = (originPoint - connectionPoint).normalized;
+                    Vector3 connectionMidPoint = originPoint - (connectionVector * radius); // was -
+
+                    // Create edge
+                    GameObject connectionEdge = Instantiate(edgePrefab, connectionMidPoint, Quaternion.identity, originCell.transform);
+                    connectionEdge.GetComponent<EdgeScript>().fromCell = originCell;
+                    connectionEdge.GetComponent<EdgeScript>().toCell = connectedCell;
+                    connectionEdges.Add(connectionEdge);
+                    edgeList.Add(connectionEdge);
+                }
+
+                // Sort edges by angle
+                connectionEdges.Sort(new GameObjectAxisAngleComparer(originPoint));
+
+                // Create in-between edges
+                for (int i = 0; i < connectionEdges.Count; i++)
+                {
+                    // Get edges
+                    GameObject edge1 = connectionEdges[i];
+                    GameObject edge2;
+                    if (i != connectionEdges.Count - 1) { edge2 = connectionEdges[i + 1]; }
+                    else
                     {
-                        GameObject connectedCell = cellScript.connectedCells[i];
+                        edge2 = connectionEdges[0]; // also need to increment angle by 360
+                    }
 
-                        // Generate edge differently depending on connected type
-                        if (connectedCell != null)
+                    // Get angles
+                    Vector3 vector1 = (originPoint - edge1.transform.position).normalized;
+                    Vector3 vector2 = (originPoint - edge2.transform.position).normalized;
+                    float angle1 = Vector3.SignedAngle(Vector3.forward, vector1, Vector3.up); // maybe always add 180
+                    float angle2 = Vector3.SignedAngle(Vector3.forward, vector2, Vector3.up);
+                    if (angle1 < 0) { angle1 += 360; }
+                    if (angle2 < 0) { angle2 += 360; }
+                    if (i == connectionEdges.Count - 1) // For looping, add 360 degrees
+                    {
+                        angle2 += 360.0f;
+                    }
+
+                    // Difference
+                    float angleDifference = angle2 - angle1;
+
+                    // Count in betweens
+                    int inBetweenAngleCount = (int)Mathf.Round(angleDifference / 90) - 1;
+                    inBetweenAngleCount = Mathf.Max(inBetweenAngleCount, 0);
+                    float inBetweenAngleDistance = angleDifference / (inBetweenAngleCount + 1);
+
+                    // Create in betweens
+                    for (int j = 0; j < inBetweenAngleCount; j++)
+                    {
+                        // Create edge
+                        GameObject edgeToInsert = Instantiate(edgePrefab, originCell.transform);
+                        edgeList.Add(edgeToInsert);
+
+                        // Get position
+                        float inBetweenAngle = angle1 + (inBetweenAngleDistance * (j + 1));
+                        Quaternion inBetweenQuaternion = Quaternion.AngleAxis(inBetweenAngle, Vector3.up); // needs to be changed back to -+?
+                        Vector3 inBetweenVector = inBetweenQuaternion * Vector3.forward;
+                        Vector3 inBetweenPosition = originPoint - (inBetweenVector * radius); // why - tho
+
+                        // Set angle
+                        edgeToInsert.transform.position = inBetweenPosition;
+                        connectionEdges.Insert(i + j + 1, edgeToInsert);
+
+                        // Set accessibility
+                        edgeToInsert.GetComponent<EdgeScript>().accessible = false;
+                    }
+                    if (i > 1000) { break; }
+                    i += inBetweenAngleCount;
+                }
+
+                // Re-sort edges (shouldn't need to do this actually)
+                connectionEdges.Sort(new GameObjectAxisAngleComparer(originPoint));
+
+                // Create corner nodes (can combine this with last function later
+                for (int i = 0; i < connectionEdges.Count; i++)
+                {
+                    // Get edges
+                    GameObject edge1 = connectionEdges[i];
+                    GameObject edge2;
+                    if (i != connectionEdges.Count - 1)
+                    {
+                        edge2 = connectionEdges[i + 1];
+                    }
+                    else
+                    {
+                        edge2 = connectionEdges[0]; // also need to increment angle by 360
+                    }
+
+                    // Get in between angle
+                    Vector3 vector1 = (originPoint - edge1.transform.position).normalized;
+                    Vector3 vector2 = (originPoint - edge2.transform.position).normalized;
+                    float angle1 = Vector3.SignedAngle(Vector3.forward, vector1, Vector3.up);
+                    float angle2 = Vector3.SignedAngle(Vector3.forward, vector2, Vector3.up);
+                    if (angle1 < 0) { angle1 += 360; }
+                    if (angle2 < 0) { angle2 += 360; }
+                    if (i == connectionEdges.Count - 1) // For looping, add 360 degrees
+                    {
+                        angle2 += 360.0f;
+                    }
+                    float tweenAngle = Mathf.Lerp(angle1, angle2, 0.5f);
+
+                    // Get in between position
+                    Quaternion inBetweenQuaternion = Quaternion.AngleAxis(tweenAngle, Vector3.up);
+                    Vector3 inBetweenVector = inBetweenQuaternion * Vector3.forward;
+                    Vector3 inBetweenPosition = originPoint - (inBetweenVector * radius);
+
+                    // Create corner in between
+                    GameObject cornerNode = Instantiate(nodePrefab, inBetweenPosition, new Quaternion(), originCell.transform);
+                    cornerNode.GetComponent<NodeScript>().positionColour = Color.green;
+
+                    // Add to edges
+                    edge1.GetComponent<EdgeScript>().toNode = cornerNode;
+                    edge2.GetComponent<EdgeScript>().fromNode = cornerNode;
+
+                    // Add to cell
+                    originCellScript.cornerNodes.Add(cornerNode);
+                }
+
+                // Add connected edges to origin cell (maybe to both cells?)
+                originCellScript.edges = connectionEdges;
+            }
+        }
+    }
+
+    public void CreateTweenCellEdges()
+    {
+        foreach (GameObject node in nodeList)
+        {
+            // Get relevant node/cell
+            NodeScript nodeScript = node.GetComponent<NodeScript>();
+            GameObject cell = nodeScript.cell;
+            CellScript cellScript = cell.GetComponent<CellScript>();
+
+            // Manage edges to adjacents and borders
+            if (nodeScript.type == "tween")
+            {
+                // Adopt edges of adjacent star cells
+                for (int i = 0; i < cellScript.connectedCells.Count; i++)
+                {
+                    GameObject connectedCell = cellScript.connectedCells[i];
+
+                    // Generate edge differently depending on connected type
+                    if (connectedCell != null)
+                    {
+                        CellScript connectedCellScript = connectedCell.GetComponent<CellScript>();
+                        // Adopt edges of star cells
+                        if (connectedCellScript.type == "star")
                         {
-                            CellScript connectedCellScript = connectedCell.GetComponent<CellScript>();
-                            // Adopt edges of star cells
-                            if (connectedCellScript.type == "star")
+                            // Get edge to adopt based on which edge is connected to this cell
+                            GameObject edgeToAdopt = null;
+                            foreach (GameObject connectedCellEdge in connectedCellScript.edges)
                             {
-                                // Get edge to adopt based on which edge is connected to this cell
-                                GameObject edgeToAdopt = null;
-                                foreach (GameObject connectedCellEdge in connectedCellScript.edges)
+                                EdgeScript connectedCellEdgeScript = connectedCellEdge.GetComponent<EdgeScript>();
+                                if (connectedCellEdgeScript.toCell == cell)
                                 {
-                                    EdgeScript connectedCellEdgeScript = connectedCellEdge.GetComponent<EdgeScript>();
-                                    if (connectedCellEdgeScript.toCell == cell)
-                                    {
-                                        edgeToAdopt = connectedCellEdge;
-                                    }
+                                    edgeToAdopt = connectedCellEdge;
                                 }
-
-                                // Adopt edge
-                                cellScript.edges.Add(edgeToAdopt);
                             }
-                            else if (connectedCellScript.type == "fill") // need to make sure this is set
-                            {
-                                // Get adjacent cell connections
-                                GameObject clockwiseCell;
-                                GameObject antiClockwiseCell;
-                                if (i < cellScript.connectedCells.Count - 1)
-                                {
-                                    clockwiseCell = cellScript.connectedCells[i + 1];
-                                }
-                                else
-                                {
-                                    clockwiseCell = cellScript.connectedCells[0];
-                                }
-                                if (i > 0)
-                                {
-                                    antiClockwiseCell = cellScript.connectedCells[i - 1];
-                                }
-                                else
-                                {
-                                    antiClockwiseCell = cellScript.connectedCells[cellScript.connectedCells.Count - 1];
-                                }
 
-                                // Get edges
-                                GameObject clockwiseEdge = null;
-                                foreach (GameObject edge in clockwiseCell.GetComponent<CellScript>().edges)
-                                {
-                                    if (edge.GetComponent<EdgeScript>().toCell == cell)
-                                    {
-                                        clockwiseEdge = edge;
-                                    }
-                                }
-                                GameObject antiClockwiseEdge = null;
-                                foreach (GameObject edge in antiClockwiseCell.GetComponent<CellScript>().edges)
-                                {
-                                    if (edge.GetComponent<EdgeScript>().toCell == cell)
-                                    {
-                                        antiClockwiseEdge = edge;
-                                    }
-                                }
-
-                                // Create connecting edge (between this and fill cell)
-                                GameObject newEdge = Instantiate(edgePrefab, cell.transform);
-                                EdgeScript newEdgeScript = newEdge.GetComponent<EdgeScript>();
-                                newEdgeScript.fromNode = clockwiseEdge.GetComponent<EdgeScript>().toNode;
-                                newEdgeScript.toNode = antiClockwiseEdge.GetComponent<EdgeScript>().fromNode;
-                                newEdgeScript.fromCell = cell;
-                                newEdgeScript.toCell = connectedCell;
-                                cellScript.edges.Add(newEdge);
-                                edgeList.Add(newEdge);
-
-                                // Set accessibility
-                                newEdgeScript.accessible = false;
-                            }
+                            // Adopt edge
+                            cellScript.edges.Add(edgeToAdopt);
                         }
-                        else // Generate null (filler) edge if null connection
+                        else if (connectedCellScript.type == "fill") // need to make sure this is set
                         {
                             // Get adjacent cell connections
                             GameObject clockwiseCell;
@@ -432,94 +563,144 @@ public class NodeDrawerScript : MonoBehaviour
                                 }
                             }
 
-                            // Create border edge
+                            // Create connecting edge (between this and fill cell)
                             GameObject newEdge = Instantiate(edgePrefab, cell.transform);
                             EdgeScript newEdgeScript = newEdge.GetComponent<EdgeScript>();
                             newEdgeScript.fromNode = clockwiseEdge.GetComponent<EdgeScript>().toNode;
                             newEdgeScript.toNode = antiClockwiseEdge.GetComponent<EdgeScript>().fromNode;
+                            newEdgeScript.fromCell = cell;
+                            newEdgeScript.toCell = connectedCell;
                             cellScript.edges.Add(newEdge);
                             edgeList.Add(newEdge);
 
-                            // Set edge accessibility
+                            // Set accessibility
                             newEdgeScript.accessible = false;
                         }
                     }
-                }
-
-                // Add corner nodes
-                foreach (GameObject edge in cellScript.edges)
-                {
-                    EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
-                    cellScript.cornerNodes.Add(edgeScript.fromNode);
-                }
-                cellScript.edges.Sort(new GameObjectAxisAngleComparer(node.transform.position));
-            }
-        }
-
-        // Adopt edges from tween to fill cells
-        if (Input.GetKeyDown(KeyCode.Alpha6))
-        {
-            foreach (GameObject cell in cellList)
-            {
-                // Get script
-                CellScript cellScript = cell.GetComponent<CellScript>();
-
-                // Adopt edges of adjacent tween cells
-                if (cellScript.type == "fill")
-                {
-                    foreach (GameObject connectedCell in cellScript.connectedCells)
+                    else // Generate null (filler) edge if null connection
                     {
-                        CellScript connectedCellScript = connectedCell.GetComponent<CellScript>();
-                        foreach (GameObject connectedCellEdge in connectedCellScript.edges)
+                        // Get adjacent cell connections
+                        GameObject clockwiseCell;
+                        GameObject antiClockwiseCell;
+                        if (i < cellScript.connectedCells.Count - 1)
                         {
-                            EdgeScript connectedCellEdgeScript = connectedCellEdge.GetComponent<EdgeScript>();
-                            if (connectedCellEdgeScript.toCell == cell)
+                            clockwiseCell = cellScript.connectedCells[i + 1];
+                        }
+                        else
+                        {
+                            clockwiseCell = cellScript.connectedCells[0];
+                        }
+                        if (i > 0)
+                        {
+                            antiClockwiseCell = cellScript.connectedCells[i - 1];
+                        }
+                        else
+                        {
+                            antiClockwiseCell = cellScript.connectedCells[cellScript.connectedCells.Count - 1];
+                        }
+
+                        // Get edges
+                        GameObject clockwiseEdge = null;
+                        foreach (GameObject edge in clockwiseCell.GetComponent<CellScript>().edges)
+                        {
+                            if (edge.GetComponent<EdgeScript>().toCell == cell)
                             {
-                                cellScript.edges.Add(connectedCellEdge);
-                                cellScript.cornerNodes.Add(connectedCellEdge.GetComponent<EdgeScript>().fromNode);
+                                clockwiseEdge = edge;
                             }
+                        }
+                        GameObject antiClockwiseEdge = null;
+                        foreach (GameObject edge in antiClockwiseCell.GetComponent<CellScript>().edges)
+                        {
+                            if (edge.GetComponent<EdgeScript>().toCell == cell)
+                            {
+                                antiClockwiseEdge = edge;
+                            }
+                        }
+
+                        // Create border edge
+                        GameObject newEdge = Instantiate(edgePrefab, cell.transform);
+                        EdgeScript newEdgeScript = newEdge.GetComponent<EdgeScript>();
+                        newEdgeScript.fromNode = clockwiseEdge.GetComponent<EdgeScript>().toNode;
+                        newEdgeScript.toNode = antiClockwiseEdge.GetComponent<EdgeScript>().fromNode;
+                        cellScript.edges.Add(newEdge);
+                        edgeList.Add(newEdge);
+
+                        // Set edge accessibility
+                        newEdgeScript.accessible = false;
+                    }
+                }
+            }
+
+            // Add corner nodes
+            foreach (GameObject edge in cellScript.edges)
+            {
+                EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
+                cellScript.cornerNodes.Add(edgeScript.fromNode);
+            }
+            cellScript.edges.Sort(new GameObjectAxisAngleComparer(node.transform.position));
+        }
+    }
+
+    public void CreateFillCellEdges()
+    {
+        foreach (GameObject cell in cellList)
+        {
+            // Get script
+            CellScript cellScript = cell.GetComponent<CellScript>();
+
+            // Adopt edges of adjacent tween cells
+            if (cellScript.type == "fill")
+            {
+                foreach (GameObject connectedCell in cellScript.connectedCells)
+                {
+                    CellScript connectedCellScript = connectedCell.GetComponent<CellScript>();
+                    foreach (GameObject connectedCellEdge in connectedCellScript.edges)
+                    {
+                        EdgeScript connectedCellEdgeScript = connectedCellEdge.GetComponent<EdgeScript>();
+                        if (connectedCellEdgeScript.toCell == cell)
+                        {
+                            cellScript.edges.Add(connectedCellEdge);
+                            cellScript.cornerNodes.Add(connectedCellEdge.GetComponent<EdgeScript>().fromNode);
                         }
                     }
                 }
             }
         }
+    }
 
-        // Create edge nodes
-        if (Input.GetKeyDown(KeyCode.Alpha7))
+    public void CreateEdgeNodes()
+    {
+        foreach (GameObject edge in edgeList)
         {
-            foreach (GameObject edge in edgeList)
+            EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
+            edgeScript.CreateNodes();
+        }
+    }
+
+    public void ConnectEdgeNodes()
+    {
+        foreach (GameObject cell in cellList)
+        {
+            CellScript cellScript = cell.GetComponent<CellScript>();
+            foreach (GameObject edge in cellScript.edges)
             {
                 EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
-                edgeScript.CreateNodes();
-            }
-        }
-
-        // Connect edge nodes
-        if (Input.GetKeyDown(KeyCode.Alpha8))
-        {
-            foreach (GameObject cell in cellList)
-            {
-                CellScript cellScript = cell.GetComponent<CellScript>();
-                foreach (GameObject edge in cellScript.edges)
+                foreach (GameObject edge2 in cellScript.edges)
                 {
-                    EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
-                    foreach (GameObject edge2 in cellScript.edges)
+                    EdgeScript edgeScript2 = edge2.GetComponent<EdgeScript>();
+                    if (edge != edge2 && edgeScript.accessible == true && edgeScript2.accessible == true)
                     {
-                        EdgeScript edgeScript2 = edge2.GetComponent<EdgeScript>();
-                        if (edge != edge2 && edgeScript.accessible == true && edgeScript2.accessible == true)
+                        foreach (GameObject entranceNode in edgeScript.entranceNodes)
                         {
-                            foreach (GameObject entranceNode in edgeScript.entranceNodes)
+                            foreach (GameObject exitNode in edgeScript2.exitNodes)
                             {
-                                foreach (GameObject exitNode in edgeScript2.exitNodes)
+                                if (cellScript.type == "star")
                                 {
-                                    if (cellScript.type == "star")
-                                    {
-                                        entranceNode.GetComponent<NodeScript>().connectedNodes.Add(exitNode);
-                                    }
-                                    else if(cellScript.type == "tween")
-                                    {
-                                        exitNode.GetComponent<NodeScript>().connectedNodes.Add(entranceNode);
-                                    }
+                                    entranceNode.GetComponent<NodeScript>().connectedNodes.Add(exitNode);
+                                }
+                                else if (cellScript.type == "tween")
+                                {
+                                    exitNode.GetComponent<NodeScript>().connectedNodes.Add(entranceNode);
                                 }
                             }
                         }
@@ -527,79 +708,86 @@ public class NodeDrawerScript : MonoBehaviour
                 }
             }
         }
+    }
 
-        // Generate meshes
-        if (Input.GetKeyDown(KeyCode.Alpha9))
+    public void GenerateCellMeshes()
+    {
+        UpdateCityConstraints();
+        foreach (GameObject cell in cellList)
         {
-            UpdateCityConstraints();
-            foreach (GameObject cell in cellList)
+            // Get cell script
+            CellScript cellScript = cell.GetComponent<CellScript>();
+
+            // Create meshes based on cell type
+            if (cellScript.type == "fill")
             {
-                // Get cell script
-                CellScript cellScript = cell.GetComponent<CellScript>();
-
-                // Create meshes based on cell type
-                if (cellScript.type == "fill")
+                // Work out material based on range
+                float cellDistance = Vector3.Distance(centre, cell.transform.position);
+                Material material;
+                if (cellDistance < downTownRange)
                 {
-                    // Work out material based on range
-                    float cellDistance = Vector3.Distance(centre, cell.transform.position);
-                    Material material;
-                    if (cellDistance < downTownRange)
-                    {
-                        material = downTownMaterial;
-                    }
-                    else if (cellDistance < midTownRange)
-                    {
-                        material = midTownMaterial;
-                    }
-                    else
-                    {
-                        material = upTownMaterial;
-                    }
-
-                    // Create meshes based on subcells
-                    List<GameObject> subCellList = SubdivideCell(cell, 2);
-                    foreach (GameObject subCell in subCellList)
-                    {
-                        CreateBuildingMesh(subCell, material);
-                    }
+                    material = downTownMaterial;
                 }
-                else if (cellScript.type == "star")
+                else if (cellDistance < midTownRange)
                 {
-                    CreateFloorMesh(cell, roadCellMaterial);
+                    material = midTownMaterial;
                 }
-                else if (cellScript.type == "tween")
+                else
                 {
-                    CreateFloorMesh(cell, roadCellMaterial);
+                    material = upTownMaterial;
+                }
+
+                // Create meshes based on subcells
+                List<GameObject> subCellList = SubdivideCell(cell, 2);
+                foreach (GameObject subCell in subCellList)
+                {
+                    CreateBuildingMesh(subCell, material);
                 }
             }
-        }
-
-        // Create car
-        if (Input.GetKeyDown(KeyCode.Alpha0))
-        {
-            // Get potential nodes
-            List<GameObject> potentialNodes = new List<GameObject>();
-            foreach (GameObject edge in edgeList)
+            else if (cellScript.type == "star")
             {
-                EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
-                if (edgeScript.accessible == true)
-                {
-                    foreach (GameObject node in edgeScript.entranceNodes)
-                    {
-                        potentialNodes.Add(node);
-                    }
-                }
+                CreateFloorMesh(cell, roadCellMaterial);
             }
-
-            // Choose node
-            GameObject chosenNode = potentialNodes[Random.Range(0, potentialNodes.Count - 1)];
-
-            // Spawn car
-            GameObject car = Instantiate(carPrefab);
-            car.GetComponent<CarScript>().targetNode = chosenNode;
-            car.transform.position = chosenNode.transform.position;
+            else if (cellScript.type == "tween")
+            {
+                CreateFloorMesh(cell, roadCellMaterial);
+            }
         }
     }
+
+    public void CreateCar()
+    {
+        // Get potential nodes
+        List<GameObject> potentialNodes = new List<GameObject>();
+        foreach (GameObject edge in edgeList)
+        {
+            EdgeScript edgeScript = edge.GetComponent<EdgeScript>();
+            if (edgeScript.accessible == true)
+            {
+                foreach (GameObject node in edgeScript.entranceNodes)
+                {
+                    potentialNodes.Add(node);
+                }
+            }
+        }
+
+        // Choose node
+        GameObject chosenNode = potentialNodes[Random.Range(0, potentialNodes.Count - 1)];
+
+        // Spawn car
+        GameObject car = Instantiate(carPrefab);
+        car.GetComponent<CarScript>().targetNode = chosenNode;
+        car.transform.position = chosenNode.transform.position;
+    }
+
+
+
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //                                                            GEOMETRY                                                                     //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     List<Triangle> TriangulateConvexPolygon(List<Vector3> convexHullpoints)
     {
@@ -635,116 +823,136 @@ public class NodeDrawerScript : MonoBehaviour
         return triangleInts;
     }
 
-    void UpdateCursor()
+    // From https://wiki.unity3d.com/index.php/3d_Math_functions (I have edited it to be non-infinite, ie. uses line segments, not lines)
+    public static bool ClosestPointsOnTwoLines(out Vector3 closestPointLine1, out Vector3 closestPointLine2, Vector3 line1Start, Vector3 line1End, Vector3 line2Start, Vector3 line2End)
     {
-        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+        Vector3 lineVec1 = line1End - line1Start;
+        Vector3 lineVec2 = line2End - line2Start;
+        float line1Length = lineVec1.magnitude;
+        float line2Length = lineVec2.magnitude;
 
-        RaycastHit hit;
+        closestPointLine1 = Vector3.zero;
+        closestPointLine2 = Vector3.zero;
 
-        if (floorCollider.Raycast(ray, out hit, 100.0f))
+        float a = Vector3.Dot(lineVec1, lineVec1);
+        float b = Vector3.Dot(lineVec1, lineVec2);
+        float e = Vector3.Dot(lineVec2, lineVec2);
+
+        float d = a * e - b * b;
+
+        //lines are not parallel
+        if (d != 0.0f)
         {
-            cursor.transform.position = hit.point;
-        }
-    }
 
+            Vector3 r = line1Start - line2Start;
+            float c = Vector3.Dot(lineVec1, r);
+            float f = Vector3.Dot(lineVec2, r);
 
-    void CreateNodeFromCursor()
-    {
-        if (Input.GetMouseButtonDown(0))
-        {
-            GameObject node = Instantiate(nodePrefab, cursor.transform.position, new Quaternion());
-            node.GetComponent<NodeScript>().type = "star";
-            nodeList.Add(node);
-        }
-    }
+            float s = (b * f - c * e) / d;
+            float t = (a * f - c * b) / d;
 
-    void ConnectNodes()
-    {
-        switch (cursorState)
-        {
-            case "idle":
-                if (Input.GetMouseButtonDown(1))
-                {
-                    selection = GetClosestNode();
-                    if (selection != null) { cursorState = "active"; }
-                }
-                break;
-            case "active":
-                if (Input.GetMouseButtonUp(1))
-                {
-                    GameObject nearestNode = GetClosestNode();
-                    if (nearestNode != null && nearestNode != selection)
-                    {
-                        selection  .GetComponent<NodeScript>().connectedNodes.Add(nearestNode);
-                        nearestNode.GetComponent<NodeScript>().connectedNodes.Add(selection);
-                    }
-                    selection = null;
-                    cursorState = "idle";
-                }
-                break;
-        }
-    }
-    void CreateTweenNodes() // Subdivides nodeweb/graph
-    {
-        // Turn all current nodes into star nodes so repeated subdivision is possible
-        foreach (GameObject node in nodeList)
-        {
-            if (node.GetComponent<NodeScript>().type != "star")
+            closestPointLine1 = line1Start + lineVec1 * s;
+            closestPointLine2 = line2Start + lineVec2 * t;
+
+            Vector3 closestVector1 = closestPointLine1 - line1Start;
+            Vector3 closestVector2 = closestPointLine2 - line2Start;
+
+            // Some sort of Dot() and length calculation to work out if in the right place?
+            // Should not be behind
+            // Should not be more than the distance of the vector
+            bool closestPoint1NotBehind = (Vector3.Dot(lineVec1, closestVector1) > 0.0f);
+            bool closestPoint2NotBehind = (Vector3.Dot(lineVec2, closestVector2) > 0.0f);
+            bool closestPoint1NotTooFar = (closestVector1.magnitude < line1Length);
+            bool closestPoint2NotTooFar = (closestVector2.magnitude < line1Length);
+
+            if (closestPoint1NotBehind && closestPoint2NotBehind &&
+                closestPoint1NotTooFar && closestPoint2NotTooFar)
             {
-                node.GetComponent<NodeScript>().type = "star";
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    // From https://forum.unity.com/threads/math-problem.8114/#post-59715
+    Vector3 ClosestPointOnLine(Vector3 vectorStart, Vector3 vectorEnd, Vector3 point)
+    {
+        var vVector1 = point - vectorStart;
+        var vVector2 = (vectorEnd - vectorStart).normalized;
+
+        var d = Vector3.Distance(vectorStart, vectorEnd);
+        var t = Vector3.Dot(vVector2, vVector1);
+
+        if (t <= 0)
+            return vectorStart;
+
+        if (t >= d)
+            return vectorEnd;
+
+        var vVector3 = vVector2 * t;
+
+        var vClosestPoint = vectorStart + vVector3;
+
+        return vClosestPoint;
+    }
+
+    Connection ClosestLine(List<Connection> connections, Vector3 point)
+    {
+        // Return null if empty
+        if (connections.Count == 0)
+        {
+            return null;
+        }
+
+        // Set shortest
+        float shortestDistance = Mathf.Infinity;
+        Connection closestConnection = connections[0];
+
+        // Find shortest
+        foreach (Connection connection in connections)
+        {
+            Vector3 closestPointOnLine = ClosestPointOnLine(connection.from.transform.position, connection.to.transform.position, point);
+            float distance = Vector3.Distance(point, closestPointOnLine);
+            if (distance < shortestDistance)
+            {
+                shortestDistance = distance;
+                closestConnection = connection;
             }
         }
 
-        // Create new tween nodes
-        if (Input.GetKeyDown(KeyCode.Alpha1))
-        {
-            // Get all connections between nodes
-            List<Connection> nodeConnections = new List<Connection>();
-            foreach (GameObject node in nodeList)
-            {
-                NodeScript nodeScript = node.GetComponent<NodeScript>();
-                foreach (GameObject connectedNode in nodeScript.connectedNodes)
-                {
-                    // Remove connection from connectedNode to avoid duplicates
-                    NodeScript connectedNodeScript = connectedNode.GetComponent<NodeScript>();
-                    connectedNodeScript.connectedNodes.Remove(node);
-
-                    // Create connection object
-                    Connection nodeConnection = new Connection(node, connectedNode);
-                    nodeConnections.Add(nodeConnection);
-                }
-            }
-
-            // Create tween node for each connection
-            foreach (Connection nodeConnection in nodeConnections)
-            {
-                // Get nodes
-                GameObject fromNode = nodeConnection.from;
-                GameObject toNode   = nodeConnection.to  ;
-
-                // Create node
-                Vector3 tweenPosition = Vector3.Lerp(fromNode.transform.position, toNode.transform.position, 0.5f);
-                GameObject tweenNode = Instantiate(nodePrefab, tweenPosition, Quaternion.identity);
-                tweenNode.GetComponent<NodeScript>().type = "tween";
-                nodeList.Add(tweenNode);
-
-                // Get scripts
-                NodeScript tweenScript = tweenNode.GetComponent<NodeScript>();
-                NodeScript fromScript = fromNode.GetComponent<NodeScript>();
-                NodeScript toScript = toNode.GetComponent<NodeScript>();
-
-                // Form new connections
-                tweenScript.connectedNodes.Add(fromNode);
-                tweenScript.connectedNodes.Add(toNode);
-                fromScript.connectedNodes.Add(tweenNode);
-                toScript.connectedNodes.Add(tweenNode);
-
-                // Break old connections
-                fromScript.connectedNodes.Remove(toNode);
-                toScript.connectedNodes.Remove(fromNode);
-            }
-        }
+        // Return
+        return closestConnection;
     }
+
+    Vector3 ClosestPointOnAnyLine(Vector3 point)
+    {
+        // Return point if no connections yet
+        if (GetConnections().Count == 0)
+        {
+            return point;
+        }
+
+        // Get closest line
+        Connection closestLine = ClosestLine(GetConnections(), point);
+        Vector3 closestPoint = ClosestPointOnLine(closestLine.from.transform.position, closestLine.to.transform.position, point);
+
+        // Return
+        return closestPoint;
+    }
+
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //                                                         GRAPH ALGORITHMS                                                                //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     List<List<GameObject>> DetectLoops(List<GameObject> nodes)
     {
@@ -851,371 +1059,6 @@ public class NodeDrawerScript : MonoBehaviour
         return loopList;
     }
 
-    List<List<GameObject>> CreateUniqueLoopList(List<List<GameObject>> loopList)
-    {
-        // Create loop list
-        List<List<GameObject>> uniqueLoopList = new List<List<GameObject>>(); // NEED TO CHECK IF THIS ALGORITHM GIVES FALSE POSITIVE ON DIFFERENT SIZED LOOPS
-
-        // Iterate through loops
-        foreach (List<GameObject> loop in loopList)
-        {
-            // Find if loop exists in unique loops
-            bool loopFound = false;
-            foreach (List<GameObject> uniqueLoop in uniqueLoopList)
-            {
-                // See if loops are identical (same nodes)
-                bool containsSameNodes = true;
-                foreach (GameObject node in loop)
-                {
-                    if (!uniqueLoop.Contains(node))
-                    {
-                        containsSameNodes = false;
-                    }
-                }
-                // If loop is found in unique loops, has already been added (loop is found)
-                if (containsSameNodes == true && loop.Count == uniqueLoop.Count)
-                {
-                    loopFound = true;
-                }
-            }
-            // Add loop if not found
-            if (!loopFound)
-            {
-                uniqueLoopList.Add(loop);
-            }
-        }
-
-        // Return unique loop list
-        return uniqueLoopList;
-    }
-
-    void CreateFillNodes()
-    {
-        SubdivideNodeList(nodeList);
-    }
-
-    void GenerateStarCellEdges(GameObject originCell, float radius)
-    {
-        // Original node
-        CellScript originCellScript = originCell.GetComponent<CellScript>();
-        Vector3 originPoint = originCell.transform.position;
-
-        // Get connected nodes
-        List<GameObject> connectedCells = originCellScript.connectedCells;
-
-        // Create edges at connection midpoints
-        List<GameObject> connectionEdges = new List<GameObject>();
-        foreach (GameObject connectedCell in connectedCells)
-        {
-            // Get position
-            Vector3 connectionPoint = connectedCell.transform.position;
-            Vector3 connectionVector = (originPoint - connectionPoint).normalized;
-            Vector3 connectionMidPoint = originPoint - (connectionVector * radius); // was -
-            
-            // Create edge
-            GameObject connectionEdge = Instantiate(edgePrefab, connectionMidPoint, Quaternion.identity, originCell.transform);
-            connectionEdge.GetComponent<EdgeScript>().fromCell = originCell;
-            connectionEdge.GetComponent<EdgeScript>().toCell = connectedCell;
-            connectionEdges.Add(connectionEdge);
-            edgeList.Add(connectionEdge);
-        }
-
-        // Sort edges by angle
-        connectionEdges.Sort(new GameObjectAxisAngleComparer(originPoint));
-
-        // Create in-between edges
-        for (int i = 0; i < connectionEdges.Count; i++)
-        {
-            // Get edges
-            GameObject edge1 = connectionEdges[i];
-            GameObject edge2;
-            if (i != connectionEdges.Count-1) { edge2 = connectionEdges[i + 1]; }
-            else 
-            { 
-                edge2 = connectionEdges[0]; // also need to increment angle by 360
-            }
-
-            // Get angles
-            Vector3 vector1 = (originPoint - edge1.transform.position).normalized;
-            Vector3 vector2 = (originPoint - edge2.transform.position).normalized;
-            float angle1 = Vector3.SignedAngle(Vector3.forward, vector1, Vector3.up); // maybe always add 180
-            float angle2 = Vector3.SignedAngle(Vector3.forward, vector2, Vector3.up);
-            if (angle1 < 0) { angle1 += 360; }
-            if (angle2 < 0) { angle2 += 360; }
-            if (i == connectionEdges.Count - 1) // For looping, add 360 degrees
-            {
-                angle2 += 360.0f;
-            }
-
-            // Difference
-            float angleDifference = angle2 - angle1;
-
-            // Count in betweens
-            int inBetweenAngleCount = (int)Mathf.Round(angleDifference / 90)-1;
-            inBetweenAngleCount = Mathf.Max(inBetweenAngleCount, 0);
-            float inBetweenAngleDistance = angleDifference / (inBetweenAngleCount+1);
-
-            // Create in betweens
-            for (int j = 0; j < inBetweenAngleCount; j++)
-            {
-                // Create edge
-                GameObject edgeToInsert = Instantiate(edgePrefab, originCell.transform);
-                edgeList.Add(edgeToInsert);
-
-                // Get position
-                float inBetweenAngle = angle1 + (inBetweenAngleDistance * (j+1));
-                Quaternion inBetweenQuaternion = Quaternion.AngleAxis(inBetweenAngle, Vector3.up); // needs to be changed back to -+?
-                Vector3 inBetweenVector = inBetweenQuaternion * Vector3.forward;
-                Vector3 inBetweenPosition = originPoint - (inBetweenVector * radius); // why - tho
-
-                // Set angle
-                edgeToInsert.transform.position = inBetweenPosition;
-                connectionEdges.Insert(i + j + 1, edgeToInsert);
-
-                // Set accessibility
-                edgeToInsert.GetComponent<EdgeScript>().accessible = false;
-            }
-            if (i > 1000) { break; }
-            i += inBetweenAngleCount;
-        }
-
-        // Re-sort edges (shouldn't need to do this actually)
-        connectionEdges.Sort(new GameObjectAxisAngleComparer(originPoint));
-
-        // Create corner nodes (can combine this with last function later
-        for (int i = 0; i < connectionEdges.Count; i++)
-        {
-            // Get edges
-            GameObject edge1 = connectionEdges[i];
-            GameObject edge2;
-            if (i != connectionEdges.Count - 1) 
-            { 
-                edge2 = connectionEdges[i + 1]; 
-            }
-            else
-            {
-                edge2 = connectionEdges[0]; // also need to increment angle by 360
-            }
-
-            // Get in between angle
-            Vector3 vector1 = (originPoint - edge1.transform.position).normalized;
-            Vector3 vector2 = (originPoint - edge2.transform.position).normalized;
-            float angle1 = Vector3.SignedAngle(Vector3.forward, vector1, Vector3.up);
-            float angle2 = Vector3.SignedAngle(Vector3.forward, vector2, Vector3.up);
-            if (angle1 < 0) { angle1 += 360; }
-            if (angle2 < 0) { angle2 += 360; }
-            if (i == connectionEdges.Count - 1) // For looping, add 360 degrees
-            {
-                angle2 += 360.0f;
-            }
-            float tweenAngle = Mathf.Lerp(angle1, angle2, 0.5f);
-
-            // Get in between position
-            Quaternion inBetweenQuaternion = Quaternion.AngleAxis(tweenAngle, Vector3.up);
-            Vector3 inBetweenVector = inBetweenQuaternion * Vector3.forward;
-            Vector3 inBetweenPosition = originPoint - (inBetweenVector * radius);
-
-            // Create corner in between
-            GameObject node = Instantiate(nodePrefab, inBetweenPosition, new Quaternion(), originCell.transform);
-            node.GetComponent<NodeScript>().positionColour = Color.green;
-
-            // Add to edges
-            edge1.GetComponent<EdgeScript>().toNode = node;
-            edge2.GetComponent<EdgeScript>().fromNode = node;
-
-            // Add to cell
-            originCellScript.cornerNodes.Add(node);
-        }
-
-        // Add connected edges to origin cell (maybe to both cells?)
-        originCellScript.edges = connectionEdges;
-    }
-
-    List<Connection> GetConnections()
-    {
-        List<Connection> nodeConnections = new List<Connection>();
-        foreach (GameObject node in nodeList)
-        {
-            NodeScript nodeScript = node.GetComponent<NodeScript>();
-            foreach (GameObject connectedNode in nodeScript.connectedNodes)
-            {
-                // Look for duplicate connection
-                bool found = false;
-                foreach (Connection connection in nodeConnections)
-                {
-                    if (connection.from == connectedNode && connection.to == node)
-                    {
-                        found = true;
-                    }
-                }    
-
-                // Create connection object
-                if (!found)
-                {
-                    Connection nodeConnection = new Connection(node, connectedNode);
-                    nodeConnections.Add(nodeConnection);
-                }
-            }
-        }
-
-        // Make connections unique (might break other things. add bool if so)
-        List<Connection> uniqueConnections = new List<Connection>();
-        foreach (Connection connection in nodeConnections)
-        {
-            bool isUnique = true;
-            foreach (Connection otherConnection in nodeConnections)
-            {
-                if (connection.from == otherConnection.to && connection.to == otherConnection.from)
-                {
-                    isUnique = false;
-                }
-            }
-            if (isUnique)
-            {
-                uniqueConnections.Add(connection);
-            }
-        }
-
-        return uniqueConnections;
-    }
-
-    List<Connection> GetConnections2() // Why did I have this variant? Is it still needed? Might need to replace something with this one
-    {
-        List<Connection> nodeConnections = new List<Connection>();
-        foreach (GameObject node in nodeList)
-        {
-            NodeScript nodeScript = node.GetComponent<NodeScript>();
-            foreach (GameObject connectedNode in nodeScript.connectedNodes)
-            {
-                // Remove connection from connectedNode to avoid duplicates
-                NodeScript connectedNodeScript = connectedNode.GetComponent<NodeScript>();
-                connectedNodeScript.connectedNodes.Remove(node);
-
-                // Create connection object
-                Connection nodeConnection = new Connection(node, connectedNode);
-                nodeConnections.Add(nodeConnection);
-            }
-        }
-        return nodeConnections;
-    }
-
-    List<Connection> GetConnections(List<GameObject> nodes) // Should probably make this the only variant eventually
-    {
-        List<Connection> nodeConnections = new List<Connection>();
-        foreach (GameObject node in nodes)
-        {
-            NodeScript nodeScript = node.GetComponent<NodeScript>();
-            foreach (GameObject connectedNode in nodeScript.connectedNodes)
-            {
-                // Remove connection from connectedNode to avoid duplicates
-                NodeScript connectedNodeScript = connectedNode.GetComponent<NodeScript>();
-                connectedNodeScript.connectedNodes.Remove(node);
-
-                // Create connection object
-                Connection nodeConnection = new Connection(node, connectedNode);
-                nodeConnections.Add(nodeConnection);
-            }
-        }
-        return nodeConnections;
-    }
-
-    GameObject GetClosestNode()
-    {
-        GameObject closestNode = null;
-        float minDist = Mathf.Infinity;
-        Vector3 currentPos = transform.position;
-        foreach (GameObject nodeTransform in nodeList)
-        {
-            float dist = Vector3.Distance(nodeTransform.transform.position, cursor.transform.position);
-            if (dist < minDist)
-            {
-                closestNode = nodeTransform;
-                minDist = dist;
-            }
-        }
-        return closestNode;
-    }
-
-    // From https://wiki.unity3d.com/index.php/3d_Math_functions (I have edited it to be non-infinite, ie. uses line segments, not lines)
-    public static bool ClosestPointsOnTwoLines(out Vector3 closestPointLine1, out Vector3 closestPointLine2, Vector3 line1Start, Vector3 line1End, Vector3 line2Start, Vector3 line2End)
-    {
-        Vector3 lineVec1 = line1End - line1Start;
-        Vector3 lineVec2 = line2End - line2Start;
-        float line1Length = lineVec1.magnitude;
-        float line2Length = lineVec2.magnitude;
-
-        closestPointLine1 = Vector3.zero;
-        closestPointLine2 = Vector3.zero;
-
-        float a = Vector3.Dot(lineVec1, lineVec1);
-        float b = Vector3.Dot(lineVec1, lineVec2);
-        float e = Vector3.Dot(lineVec2, lineVec2);
-
-        float d = a * e - b * b;
-
-        //lines are not parallel
-        if (d != 0.0f)
-        {
-
-            Vector3 r = line1Start - line2Start;
-            float c = Vector3.Dot(lineVec1, r);
-            float f = Vector3.Dot(lineVec2, r);
-
-            float s = (b * f - c * e) / d;
-            float t = (a * f - c * b) / d;
-
-            closestPointLine1 = line1Start + lineVec1 * s;
-            closestPointLine2 = line2Start + lineVec2 * t;
-
-            Vector3 closestVector1 = closestPointLine1 - line1Start;
-            Vector3 closestVector2 = closestPointLine2 - line2Start;
-
-            // Some sort of Dot() and length calculation to work out if in the right place?
-            // Should not be behind
-            // Should not be more than the distance of the vector
-            bool closestPoint1NotBehind = (Vector3.Dot(lineVec1, closestVector1) > 0.0f);
-            bool closestPoint2NotBehind = (Vector3.Dot(lineVec2, closestVector2) > 0.0f);
-            bool closestPoint1NotTooFar = (closestVector1.magnitude < line1Length);
-            bool closestPoint2NotTooFar = (closestVector2.magnitude < line1Length);
-
-            if (closestPoint1NotBehind && closestPoint2NotBehind &&
-                closestPoint1NotTooFar && closestPoint2NotTooFar)
-            {
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-        else
-        {
-            return false;
-        }
-    }
-
-    // From https://forum.unity.com/threads/math-problem.8114/#post-59715
-    Vector3 ClosestPointOnLine(Vector3 vA, Vector3 vB, Vector3 vPoint)
-    {
-        var vVector1 = vPoint - vA;
-        var vVector2 = (vB - vA).normalized;
-
-        var d = Vector3.Distance(vA, vB);
-        var t = Vector3.Dot(vVector2, vVector1);
-
-        if (t <= 0)
-            return vA;
-
-        if (t >= d)
-            return vB;
-
-        var vVector3 = vVector2 * t;
-
-        var vClosestPoint = vA + vVector3;
-
-        return vClosestPoint;
-    }
-
     List<GameObject> SubdivideNodeList(List<GameObject> nodes)
     {
         // Get connections
@@ -1280,7 +1123,7 @@ public class NodeDrawerScript : MonoBehaviour
         CellScript cellScript = cell.GetComponent<CellScript>();
 
         // Copy cornernodes from cell
-        foreach(GameObject node in cellScript.cornerNodes)
+        foreach (GameObject node in cellScript.cornerNodes)
         {
             GameObject newNode = Instantiate(nodePrefab, node.transform);
             nodes.Add(newNode);
@@ -1463,6 +1306,400 @@ public class NodeDrawerScript : MonoBehaviour
         }
     }
 
+    List<List<GameObject>> CreateUniqueLoopList(List<List<GameObject>> loopList)
+    {
+        // Create loop list
+        List<List<GameObject>> uniqueLoopList = new List<List<GameObject>>(); // NEED TO CHECK IF THIS ALGORITHM GIVES FALSE POSITIVE ON DIFFERENT SIZED LOOPS
+
+        // Iterate through loops
+        foreach (List<GameObject> loop in loopList)
+        {
+            // Find if loop exists in unique loops
+            bool loopFound = false;
+            foreach (List<GameObject> uniqueLoop in uniqueLoopList)
+            {
+                // See if loops are identical (same nodes)
+                bool containsSameNodes = true;
+                foreach (GameObject node in loop)
+                {
+                    if (!uniqueLoop.Contains(node))
+                    {
+                        containsSameNodes = false;
+                    }
+                }
+                // If loop is found in unique loops, has already been added (loop is found)
+                if (containsSameNodes == true && loop.Count == uniqueLoop.Count)
+                {
+                    loopFound = true;
+                }
+            }
+            // Add loop if not found
+            if (!loopFound)
+            {
+                uniqueLoopList.Add(loop);
+            }
+        }
+
+        // Return unique loop list
+        return uniqueLoopList;
+    }
+
+
+
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //                                                          INTERFACING                                                                    //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    void StartLine()
+    {
+        // Snap from
+        if (snapFrom)
+        {
+            if (drawFromNode != null)
+            {
+                NodeScript script = drawFromNode.GetComponent<NodeScript>();
+            }
+            drawFromNode = GetOrCreateSnappableNode(cursor.transform.position);
+            if (drawFromNode != null)
+            {
+                NodeScript script = drawFromNode.GetComponent<NodeScript>();
+            }
+        }
+        else
+        {
+            // Create
+            drawFromNode = Instantiate(nodePrefab, cursor.transform.position, new Quaternion());
+            drawFromNode.GetComponent<NodeScript>().type = "star";
+            nodeList.Add(drawFromNode);
+        }
+
+        // Set state
+        cursorState = "active";
+    }
+
+    void EndLine()
+    {
+        // Get draw to node
+        if (snapTo)
+        {
+            if (drawFromNode != null)
+            {
+                NodeScript script = drawFromNode.GetComponent<NodeScript>();
+            }
+            drawToNode = GetOrCreateSnappableNode(cursor.transform.position); // that isnt draw from node
+            if (drawFromNode != null)
+            {
+                NodeScript script = drawFromNode.GetComponent<NodeScript>();
+            }
+        }
+        else
+        {
+            drawToNode = Instantiate(nodePrefab, cursor.transform.position, new Quaternion());
+            drawToNode.GetComponent<NodeScript>().type = "star";
+            nodeList.Add(drawToNode);
+        }
+
+        // Create intersecting nodes
+        List<GameObject> intersectingNodes = new List<GameObject>();
+        List<Connection> connections = GetConnections(); // Problem is here. Has doubling
+
+        // Remove connections from and to the fromline and toline
+        for (int i = 0; i < connections.Count; i++)
+        {
+            Connection connection = connections[i];
+            if (connection.from == drawFromNode || connection.from == drawToNode ||
+                connection.to == drawFromNode || connection.to == drawToNode)
+            {
+                connections.RemoveAt(i);
+                i--;
+            }
+        }
+
+        Connection mainConnection = new Connection(drawFromNode, drawToNode);
+        if (drawFromNode != null)
+        {
+            NodeScript script = drawFromNode.GetComponent<NodeScript>();
+        }
+        foreach (Connection connection in connections)
+        {
+            // Points
+            Vector3 intersectionPoint1 = Vector3.zero;
+            Vector3 intersectionPoint2 = Vector3.zero;
+            Vector3 fromPoint1 = mainConnection.from.transform.position;
+            Vector3 toPoint1 = mainConnection.to.transform.position;
+            Vector3 fromPoint2 = connection.from.transform.position;
+            Vector3 toPoint2 = connection.to.transform.position;
+
+            // Subdivide if intersecting
+            if (ClosestPointsOnTwoLines(out intersectionPoint1, out intersectionPoint2, fromPoint1, toPoint1, fromPoint2, toPoint2)) // Lines are infinite?
+            {
+                if (Vector3.Distance(intersectionPoint1, intersectionPoint2) < 0.1f) // rephrase this as closestPoints, not intersection, and define intersection by epsilon
+                {
+                    GameObject subdividedNode = SubdivideConnection(connection, intersectionPoint1);
+                    intersectingNodes.Add(subdividedNode);
+                }
+            }
+        }
+
+        // Connect all nodes (including from/to and all intersecting)
+        if (drawFromNode != null)
+        {
+            NodeScript script = drawFromNode.GetComponent<NodeScript>();
+            Debug.Log("About to insert into final list. Count: " + script.connectedNodes.Count);
+        }
+        intersectingNodes.Insert(0, drawFromNode);
+        intersectingNodes.Add(drawToNode);
+        for (int i = 1; i < intersectingNodes.Count; i++)
+        {
+            GameObject fromNode = intersectingNodes[i - 1];
+            GameObject toNode = intersectingNodes[i];
+            fromNode.GetComponent<NodeScript>().connectedNodes.Add(toNode);
+            toNode.GetComponent<NodeScript>().connectedNodes.Add(fromNode);
+        }
+
+        // Reset state
+        cursorState = "idle";
+    }
+
+    void DeleteLine()
+    {
+        // Get closest connection
+        List<Connection> connections = GetConnections();
+        Connection closestConnection = ClosestLine(connections, cursor.transform.position);
+
+        // Get distance
+        Vector3 closestPoint = ClosestPointOnLine(closestConnection.from.transform.position, closestConnection.to.transform.position, cursor.transform.position);
+        float distance = Vector3.Distance(cursor.transform.position, closestPoint);
+
+        // Delete if close
+        if (distance < snapDistance)
+        {
+            // Get nodes
+            GameObject fromNode = closestConnection.from;
+            NodeScript fromScript = fromNode.GetComponent<NodeScript>();
+            GameObject toNode = closestConnection.to;
+            NodeScript toScript = toNode.GetComponent<NodeScript>();
+
+            // Delete connection
+            fromScript.connectedNodes.Remove(toNode);
+            toScript.connectedNodes.Remove(fromNode);
+
+            // Delete stray nodes
+            if (fromScript.connectedNodes.Count == 0)
+            {
+                nodeList.Remove(fromNode);
+                Destroy(fromNode);
+            }
+            if (toScript.connectedNodes.Count == 0)
+            {
+                Destroy(toNode);
+                nodeList.Remove(toNode);
+            }
+        }
+    }
+
+    void UpdateCursor()
+    {
+        Ray ray = Camera.main.ScreenPointToRay(Input.mousePosition);
+
+        RaycastHit hit;
+
+        if (floorCollider.Raycast(ray, out hit, 100.0f))
+        {
+            cursor.transform.position = hit.point;
+        }
+    }
+
+
+    void CreateNodeFromCursor()
+    {
+        if (Input.GetMouseButtonDown(0))
+        {
+            GameObject node = Instantiate(nodePrefab, cursor.transform.position, new Quaternion());
+            node.GetComponent<NodeScript>().type = "star";
+            nodeList.Add(node);
+        }
+    }
+
+    void ConnectNodes()
+    {
+        switch (cursorState)
+        {
+            case "idle":
+                if (Input.GetMouseButtonDown(1))
+                {
+                    selection = GetClosestNode();
+                    if (selection != null) { cursorState = "active"; }
+                }
+                break;
+            case "active":
+                if (Input.GetMouseButtonUp(1))
+                {
+                    GameObject nearestNode = GetClosestNode();
+                    if (nearestNode != null && nearestNode != selection)
+                    {
+                        selection  .GetComponent<NodeScript>().connectedNodes.Add(nearestNode);
+                        nearestNode.GetComponent<NodeScript>().connectedNodes.Add(selection);
+                    }
+                    selection = null;
+                    cursorState = "idle";
+                }
+                break;
+        }
+    }
+
+
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //                                                          DATA HELPERS                                                                   //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    List<Connection> GetConnections()
+    {
+        List<Connection> nodeConnections = new List<Connection>();
+        foreach (GameObject node in nodeList)
+        {
+            NodeScript nodeScript = node.GetComponent<NodeScript>();
+            foreach (GameObject connectedNode in nodeScript.connectedNodes)
+            {
+                // Look for duplicate connection
+                bool found = false;
+                foreach (Connection connection in nodeConnections)
+                {
+                    if (connection.from == connectedNode && connection.to == node)
+                    {
+                        found = true;
+                    }
+                }
+
+                // Create connection object
+                if (!found)
+                {
+                    Connection nodeConnection = new Connection(node, connectedNode);
+                    nodeConnections.Add(nodeConnection);
+                }
+            }
+        }
+
+        // Make connections unique (might break other things. add bool if so)
+        List<Connection> uniqueConnections = new List<Connection>();
+        foreach (Connection connection in nodeConnections)
+        {
+            bool isUnique = true;
+            foreach (Connection otherConnection in nodeConnections)
+            {
+                if (connection.from == otherConnection.to && connection.to == otherConnection.from)
+                {
+                    isUnique = false;
+                }
+            }
+            if (isUnique)
+            {
+                uniqueConnections.Add(connection);
+            }
+        }
+
+        return uniqueConnections;
+    }
+
+    List<Connection> GetConnections2() // Why did I have this variant? Is it still needed? Might need to replace something with this one
+    {
+        List<Connection> nodeConnections = new List<Connection>();
+        foreach (GameObject node in nodeList)
+        {
+            NodeScript nodeScript = node.GetComponent<NodeScript>();
+            foreach (GameObject connectedNode in nodeScript.connectedNodes)
+            {
+                // Remove connection from connectedNode to avoid duplicates
+                NodeScript connectedNodeScript = connectedNode.GetComponent<NodeScript>();
+                connectedNodeScript.connectedNodes.Remove(node);
+
+                // Create connection object
+                Connection nodeConnection = new Connection(node, connectedNode);
+                nodeConnections.Add(nodeConnection);
+            }
+        }
+        return nodeConnections;
+    }
+
+    List<Connection> GetConnections(List<GameObject> nodes) // Should probably make this the only variant eventually
+    {
+        List<Connection> nodeConnections = new List<Connection>();
+        foreach (GameObject node in nodes)
+        {
+            NodeScript nodeScript = node.GetComponent<NodeScript>();
+            foreach (GameObject connectedNode in nodeScript.connectedNodes)
+            {
+                // Remove connection from connectedNode to avoid duplicates
+                NodeScript connectedNodeScript = connectedNode.GetComponent<NodeScript>();
+                connectedNodeScript.connectedNodes.Remove(node);
+
+                // Create connection object
+                Connection nodeConnection = new Connection(node, connectedNode);
+                nodeConnections.Add(nodeConnection);
+            }
+        }
+        return nodeConnections;
+    }
+
+    // Should generalise this as "Get closest GameObject to point"
+    GameObject GetClosestNode()
+    {
+        GameObject closestNode = null;
+        float minDist = Mathf.Infinity;
+        Vector3 currentPos = transform.position;
+        foreach (GameObject nodeTransform in nodeList)
+        {
+            float dist = Vector3.Distance(nodeTransform.transform.position, cursor.transform.position);
+            if (dist < minDist)
+            {
+                closestNode = nodeTransform;
+                minDist = dist;
+            }
+        }
+        return closestNode;
+    }
+
+    void UpdateCityConstraints()
+    {
+        // Get centre
+        centre = Vector3.zero;
+        foreach (GameObject node in nodeList)
+        {
+            centre += node.transform.position;
+        }
+        centre /= nodeList.Count;
+
+        // Find radius from furthest point
+        cityRadius = 0.0f;
+        foreach (GameObject node in nodeList)
+        {
+            float distance = Vector3.Distance(node.transform.position, centre);
+            if (distance > cityRadius)
+            {
+                cityRadius = distance;
+            }
+        }
+
+        // Town ranges
+        midTownRange = cityRadius * 0.5f;
+        downTownRange = cityRadius * 0.25f;
+    }
+
+
+
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //                                                         MESH GENERATION                                                                 //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     void CreateFloorMesh(GameObject cell, Material material)
     {
         CellScript cellScript = cell.GetComponent<CellScript>();
@@ -1543,7 +1780,7 @@ public class NodeDrawerScript : MonoBehaviour
         foreach (List<Vector3> face in faces)
         {
             // Create face object
-            GameObject faceObject = Instantiate(facePrefab,cell.transform);
+            GameObject faceObject = Instantiate(facePrefab, cell.transform);
             MeshFilter faceMeshFilter = faceObject.GetComponent<MeshFilter>();
             MeshRenderer faceMeshRenderer = faceObject.GetComponent<MeshRenderer>();
 
@@ -1557,37 +1794,110 @@ public class NodeDrawerScript : MonoBehaviour
         }
     }
 
-    void UpdateCityConstraints()
+
+
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //                                                       MISCELLANEOUS                                                                     //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    void CreateFillNodes()
     {
-        // Get centre
-        centre = Vector3.zero;
-        foreach (GameObject node in nodeList)
-        {
-            centre += node.transform.position;
-        }
-        centre /= nodeList.Count;
-
-        // Find radius from furthest point
-        cityRadius = 0.0f;
-        foreach (GameObject node in nodeList)
-        {
-            float distance = Vector3.Distance(node.transform.position,centre);
-            if (distance > cityRadius)
-            {
-                cityRadius = distance;
-            }
-        }
-
-        // Town ranges
-        midTownRange = cityRadius * 0.5f;
-        downTownRange = cityRadius * 0.25f;
+        SubdivideNodeList(nodeList);
     }
 
-    private void OnDrawGizmos()
+    private void OnDrawGizmos() // Can probably shorten this by combining mouse on/off cases and having a "closest snappable" variable
     {
+        // Draw cursor
         Gizmos.DrawWireSphere(cursor.transform.position, 1.0f);
         if (selection != null) { Gizmos.DrawLine(cursor.transform.position, selection.transform.position); }
+
+        // Draw line
+        if (Input.GetMouseButton(0))
+        {
+            // Just draw from and to if nodecount is 1
+            if (nodeList.Count == 1)
+            {
+                // Draw
+                Gizmos.DrawLine(drawFromNode.transform.position, cursor.transform.position);
+            }
+
+            // Get draw from point
+            Vector3 fromPoint = drawFromNode.transform.position;
+
+            // Get closest line and node
+            Vector3 toPoint;
+            Vector3 closestPointOnAnyLine = ClosestPointOnAnyLine(cursor.transform.position);
+            GameObject closestNode = GetClosestNode();
+            float closestNodeDistance = Vector3.Distance(cursor.transform.position, closestNode.transform.position);
+            float closestPointOnAnyLineDistance = Vector3.Distance(cursor.transform.position, closestPointOnAnyLine);
+
+            // Set draw to point
+            if (closestNodeDistance < snapDistance)
+            {
+                toPoint = closestNode.transform.position;
+            }
+            else if (closestPointOnAnyLineDistance < snapDistance)
+            {
+                toPoint = closestPointOnAnyLine;
+            }
+            else
+            {
+                toPoint = cursor.transform.position;
+            }
+
+            // Draw
+            Gizmos.DrawLine(fromPoint, toPoint);
+        }
+        else
+        {
+            // Set cursor position
+            Vector3 closestPointOnAnyLine = ClosestPointOnAnyLine(cursor.transform.position);
+            Vector3 closestNodePoint = GetClosestNode().transform.position;
+            float closestNodeDistance = Vector3.Distance(cursor.transform.position, closestNodePoint);
+            float closestPointOnAnyLineDistance = Vector3.Distance(cursor.transform.position, closestPointOnAnyLine);
+
+            // Set cursor position
+            Vector3 cursorPosition;
+            if (closestNodeDistance < snapDistance)
+            {
+                cursorPosition = closestNodePoint;
+            }
+            else if (closestPointOnAnyLineDistance < snapDistance)
+            {
+                cursorPosition = closestPointOnAnyLine;
+            }
+            else
+            {
+                cursorPosition = cursor.transform.position;
+            }
+
+            // Draw cursor
+            Gizmos.DrawWireSphere(cursorPosition, 0.2f);
+        }
     }
+
+    bool AnyButtonsHovered()
+    {
+        bool hovered = false;
+        foreach (GameObject button in buttons)
+        {
+            if (button.GetComponent<ButtonScript>().mouse_over == true)
+            {
+                hovered = true;
+            }
+        }
+        return hovered;
+    }
+
+
+
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //                                                       MEMBER VARIABLES                                                                  //
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     // Prefabs
     public GameObject nodePrefab;
@@ -1620,6 +1930,7 @@ public class NodeDrawerScript : MonoBehaviour
     bool snapFrom = true;
     bool snapTo = true;
     public float snapDistance;
+    public List<GameObject> buttons;
 
     // Visual
     public Material roadCellMaterial;
